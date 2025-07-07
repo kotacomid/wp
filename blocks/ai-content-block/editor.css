@@ -1,0 +1,68 @@
+.kotacom-ai-content-block {
+    margin: 20px 0;
+}
+
+.kotacom-ai-content-block .block-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    border: 2px dashed #ccd0d4;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    text-align: center;
+    min-height: 200px;
+}
+
+.kotacom-ai-content-block .block-placeholder-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+}
+
+.kotacom-ai-content-block .block-placeholder h3 {
+    margin: 0 0 8px 0;
+    color: #1e1e1e;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.kotacom-ai-content-block .block-placeholder p {
+    margin: 8px 0;
+    color: #757575;
+    font-size: 14px;
+    line-height: 1.4;
+    max-width: 400px;
+}
+
+.kotacom-ai-content-block .ai-generated-content {
+    padding: 20px;
+    border-left: 4px solid #007cba;
+    background-color: #f0f8ff;
+    border-radius: 0 4px 4px 0;
+}
+
+.kotacom-ai-content-block .ai-generated-content:focus {
+    outline: 2px solid #007cba;
+    outline-offset: 2px;
+}
+
+/* Spinner styling */
+.kotacom-ai-content-block .components-spinner {
+    margin-bottom: 16px;
+}
+
+/* Notice styling */
+.kotacom-ai-content-block .components-notice {
+    margin-bottom: 16px;
+}
+
+/* Panel styling */
+.components-panel__body .components-base-control {
+    margin-bottom: 16px;
+}
+
+.components-panel__body .components-base-control:last-child {
+    margin-bottom: 8px;
+}

@@ -230,6 +230,9 @@ class KotacomAI {
         add_action('wp_ajax_kotacom_generate_image', array($this, 'ajax_generate_image'));
         add_action('wp_ajax_kotacom_test_image_provider', array($this, 'ajax_test_image_provider'));
         add_action('wp_ajax_kotacom_refresh_posts', array($this, 'ajax_refresh_posts'));
+        
+        // Gutenberg blocks
+        add_action('wp_ajax_kotacom_generate_content_block', array($this, 'ajax_generate_content_block'));
     }
     
     /**
@@ -269,8 +272,53 @@ class KotacomAI {
         
         // Register custom post types
         $this->register_post_types();
+        
+        // Register Gutenberg blocks
+        $this->register_gutenberg_blocks();
     }
     
+    /**
+     * Register Gutenberg blocks
+     */
+    private function register_gutenberg_blocks() {
+        // Only register blocks if Gutenberg is available
+        if (!function_exists('register_block_type')) {
+            return;
+        }
+
+        // Register block category
+        add_filter('block_categories_all', function($categories) {
+            return array_merge($categories, array(
+                array(
+                    'slug' => 'kotacom-ai',
+                    'title' => __('Kotacom AI', 'kotacom-ai'),
+                    'icon' => 'admin-generic'
+                )
+            ));
+        });
+
+        // Register AI Content Block
+        register_block_type(KOTACOM_AI_PLUGIN_DIR . 'blocks/ai-content-block');
+        
+        // Register AI Image Block
+        register_block_type(KOTACOM_AI_PLUGIN_DIR . 'blocks/ai-image-block');
+
+        // Enqueue block assets
+        add_action('enqueue_block_editor_assets', array($this, 'enqueue_block_editor_assets'));
+    }
+
+    /**
+     * Enqueue block editor assets
+     */
+    public function enqueue_block_editor_assets() {
+        // Localize script for blocks
+        wp_localize_script('wp-blocks', 'kotacomAI', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('kotacom_ai_nonce'),
+            'pluginUrl' => KOTACOM_AI_PLUGIN_URL
+        ));
+    }
+
     /**
      * Register custom post types
      */
@@ -752,6 +800,85 @@ class KotacomAI {
         }
 
         wp_send_json_success($response_data);
+    }
+
+    /**
+     * AJAX: Generate content for Gutenberg block
+     */
+    public function ajax_generate_content_block() {
+        check_ajax_referer('kotacom_ai_nonce', 'nonce');
+
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+        }
+
+        $keyword = sanitize_text_field($_POST['keyword'] ?? '');
+        $prompt_id = intval($_POST['prompt'] ?? 0);
+        $tone = sanitize_text_field($_POST['tone'] ?? 'informative');
+        $length = sanitize_text_field($_POST['length'] ?? '500');
+        $audience = sanitize_text_field($_POST['audience'] ?? 'general');
+
+        if (empty($keyword)) {
+            wp_send_json_error(array('message' => __('Keyword is required', 'kotacom-ai')));
+        }
+
+        // Get prompt template if provided
+        $prompt_template = '';
+        if ($prompt_id) {
+            $prompt_post = get_post($prompt_id);
+            if ($prompt_post && $prompt_post->post_type === 'kotacom_template') {
+                $prompt_template = $prompt_post->post_content;
+            }
+        }
+
+        // Create default prompt if none provided
+        if (empty($prompt_template)) {
+            $prompt_template = "Write a comprehensive, engaging {tone} article about {keyword} for {audience}. Make it approximately {length} words long and ensure it's informative and valuable to readers.";
+        }
+
+        // Replace placeholders
+        $final_prompt = str_replace(
+            array('{keyword}', '{tone}', '{length}', '{audience}'),
+            array($keyword, $tone, $length, $audience),
+            $prompt_template
+        );
+
+        // Generate content
+        $api_handler = new KotacomAI_API_Handler();
+        $result = $api_handler->generate_content($final_prompt, array(
+            'tone' => $tone,
+            'length' => $length,
+            'audience' => $audience
+        ));
+
+        if ($result['success']) {
+            // Log successful generation
+            if (class_exists('KotacomAI_Logger')) {
+                KotacomAI_Logger::add(
+                    'block_content_generation', 
+                    1, 
+                    0, 
+                    sprintf('Keyword: %s, Length: %s words', $keyword, $length)
+                );
+            }
+
+            wp_send_json_success(array(
+                'content' => $result['content'],
+                'keyword' => $keyword
+            ));
+        } else {
+            // Log failed generation
+            if (class_exists('KotacomAI_Logger')) {
+                KotacomAI_Logger::add(
+                    'block_content_generation', 
+                    0, 
+                    0, 
+                    sprintf('Failed for keyword: %s - %s', $keyword, $result['error'])
+                );
+            }
+
+            wp_send_json_error(array('message' => $result['error']));
+        }
     }
 
     /**

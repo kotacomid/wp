@@ -1,0 +1,46 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 2,
+    "name": "kotacom-ai/ai-content",
+    "title": "AI Content",
+    "category": "kotacom-ai",
+    "icon": "admin-generic",
+    "description": "Generate AI content using keywords and prompts",
+    "supports": {
+        "html": false,
+        "align": ["left", "center", "right", "wide", "full"]
+    },
+    "attributes": {
+        "keyword": {
+            "type": "string",
+            "default": ""
+        },
+        "prompt": {
+            "type": "string",
+            "default": ""
+        },
+        "tone": {
+            "type": "string",
+            "default": "informative"
+        },
+        "length": {
+            "type": "string",
+            "default": "500"
+        },
+        "audience": {
+            "type": "string",
+            "default": "general"
+        },
+        "generated_content": {
+            "type": "string",
+            "default": ""
+        },
+        "auto_generate": {
+            "type": "boolean",
+            "default": false
+        }
+    },
+    "editorScript": "file:./editor.js",
+    "style": "file:./style.css",
+    "editorStyle": "file:./editor.css"
+}

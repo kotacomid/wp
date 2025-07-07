@@ -1,0 +1,21 @@
+.kotacom-ai-content-block {
+    margin: 2em 0;
+    line-height: 1.6;
+}
+
+.kotacom-ai-content-block .ai-generated-content {
+    position: relative;
+}
+
+.kotacom-ai-content-block .ai-generated-content::before {
+    content: "🤖 AI Generated";
+    position: absolute;
+    top: -20px;
+    right: 0;
+    font-size: 11px;
+    color: #666;
+    background: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+}

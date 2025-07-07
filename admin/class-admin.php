@@ -476,34 +476,114 @@ class KotacomAI_Admin {
      */
     public function display_content_refresh_page() {
         if (!current_user_can('edit_posts')) return;
-        $posts = get_posts(array('numberposts' => 20, 'post_status' => 'publish', 'post_type' => 'post', 'orderby' => 'date', 'order' => 'DESC'));
+        
+        // Enhanced post query with pagination support
+        $posts_per_page = 50;
+        $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+        $date_filter = isset($_GET['date_filter']) ? sanitize_text_field($_GET['date_filter']) : 'all';
+        
+        $args = array(
+            'posts_per_page' => $posts_per_page,
+            'paged' => $paged,
+            'post_status' => 'publish',
+            'post_type' => 'post',
+            'orderby' => 'date',
+            'order' => 'DESC'
+        );
+        
+        // Add date filtering
+        if ($date_filter !== 'all') {
+            switch ($date_filter) {
+                case 'last_week':
+                    $args['date_query'] = array(
+                        array(
+                            'after' => '1 week ago'
+                        )
+                    );
+                    break;
+                case 'last_month':
+                    $args['date_query'] = array(
+                        array(
+                            'after' => '1 month ago'
+                        )
+                    );
+                    break;
+                case 'last_3_months':
+                    $args['date_query'] = array(
+                        array(
+                            'after' => '3 months ago'
+                        )
+                    );
+                    break;
+                case 'last_year':
+                    $args['date_query'] = array(
+                        array(
+                            'after' => '1 year ago'
+                        )
+                    );
+                    break;
+                case 'older_than_year':
+                    $args['date_query'] = array(
+                        array(
+                            'before' => '1 year ago'
+                        )
+                    );
+                    break;
+            }
+        }
+        
+        $posts_query = new WP_Query($args);
+        $posts = $posts_query->posts;
+        $total_posts = $posts_query->found_posts;
+        $max_pages = $posts_query->max_num_pages;
+        
         $nonce = wp_create_nonce('kotacom_ai_nonce');
         ?>
         <div class="wrap">
             <h1><?php _e('Content Refresh', 'kotacom-ai'); ?></h1>
             <p><?php _e('Select posts, enter a refresh prompt, and let AI update the content.', 'kotacom-ai'); ?></p>
-            <p>
-                <label for="refresh-template"><strong><?php _e('Refresh Template:', 'kotacom-ai'); ?></strong></label>
-                <select id="refresh-template">
-                    <option value=""><?php _e('— Select template —', 'kotacom-ai'); ?></option>
-                    <?php
-                    $templates = get_posts(array('post_type' => 'kotacom_template', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC'));
-                    foreach($templates as $t): ?>
-                        <option value="<?php echo esc_attr($t->ID); ?>"><?php echo esc_html($t->post_title); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <input type="checkbox" id="update-date" style="margin-left:15px;" /> <label for="update-date"><?php _e('Update post date to now', 'kotacom-ai'); ?></label>
-            </p>
-            <p>
-                <label for="cat-filter"><strong><?php _e('Filter by Category:', 'kotacom-ai'); ?></strong></label>
-                <select id="cat-filter">
-                    <option value="all"><?php _e('All Categories', 'kotacom-ai'); ?></option>
-                    <?php $all_cats = get_categories(array('hide_empty'=>false));
-                    foreach($all_cats as $c): ?>
-                        <option value="<?php echo esc_attr($c->term_id); ?>"><?php echo esc_html($c->name); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </p>
+            
+            <!-- Enhanced Filters -->
+            <div class="tablenav top">
+                <div class="alignleft actions">
+                    <label for="refresh-template"><strong><?php _e('Template:', 'kotacom-ai'); ?></strong></label>
+                    <select id="refresh-template">
+                        <option value=""><?php _e('— Select template —', 'kotacom-ai'); ?></option>
+                        <?php
+                        $templates = get_posts(array('post_type' => 'kotacom_template', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC'));
+                        foreach($templates as $t): ?>
+                            <option value="<?php echo esc_attr($t->ID); ?>"><?php echo esc_html($t->post_title); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    
+                    <label for="cat-filter" style="margin-left: 20px;"><strong><?php _e('Category:', 'kotacom-ai'); ?></strong></label>
+                    <select id="cat-filter">
+                        <option value="all"><?php _e('All Categories', 'kotacom-ai'); ?></option>
+                        <?php $all_cats = get_categories(array('hide_empty'=>false));
+                        foreach($all_cats as $c): ?>
+                            <option value="<?php echo esc_attr($c->term_id); ?>"><?php echo esc_html($c->name); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    
+                    <label for="date-filter" style="margin-left: 20px;"><strong><?php _e('Date:', 'kotacom-ai'); ?></strong></label>
+                    <select id="date-filter" onchange="window.location.href=this.value;">
+                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=all'); ?>" <?php selected($date_filter, 'all'); ?>><?php _e('All Dates', 'kotacom-ai'); ?></option>
+                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=last_week'); ?>" <?php selected($date_filter, 'last_week'); ?>><?php _e('Last Week', 'kotacom-ai'); ?></option>
+                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=last_month'); ?>" <?php selected($date_filter, 'last_month'); ?>><?php _e('Last Month', 'kotacom-ai'); ?></option>
+                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=last_3_months'); ?>" <?php selected($date_filter, 'last_3_months'); ?>><?php _e('Last 3 Months', 'kotacom-ai'); ?></option>
+                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=last_year'); ?>" <?php selected($date_filter, 'last_year'); ?>><?php _e('Last Year', 'kotacom-ai'); ?></option>
+                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=older_than_year'); ?>" <?php selected($date_filter, 'older_than_year'); ?>><?php _e('Older than 1 Year', 'kotacom-ai'); ?></option>
+                    </select>
+                </div>
+                
+                <div class="alignright actions">
+                    <input type="checkbox" id="update-date" /> 
+                    <label for="update-date"><?php _e('Update post date to now', 'kotacom-ai'); ?></label>
+                </div>
+            </div>
+            
+            <p><strong><?php _e('Total Posts:', 'kotacom-ai'); ?></strong> <?php echo number_format($total_posts); ?> | 
+               <strong><?php _e('Showing:', 'kotacom-ai'); ?></strong> <?php echo count($posts); ?> posts</p>
             <textarea id="refresh-prompt" style="width:100%;min-height:120px;" placeholder="<?php _e('e.g., Rewrite intro, update stats to 2025, add FAQ… Use {current_content} and {title} placeholders.', 'kotacom-ai'); ?>"></textarea>
             <table class="widefat fixed striped" id="refresh-table">
                 <thead><tr><th><input type="checkbox" id="select-all" /></th><th><?php _e('Title', 'kotacom-ai'); ?></th><th><?php _e('Date', 'kotacom-ai'); ?></th></tr></thead>
@@ -521,6 +601,28 @@ class KotacomAI_Admin {
                 <button class="button button-primary" id="run-refresh" data-nonce="<?php echo esc_attr($nonce); ?>"><?php _e('Run Refresh', 'kotacom-ai'); ?></button>
                 <span id="refresh-progress" style="margin-left:15px;"></span>
             </p>
+            
+            <!-- Pagination -->
+            <?php if ($max_pages > 1): ?>
+            <div class="tablenav bottom">
+                <div class="tablenav-pages">
+                    <span class="displaying-num"><?php printf(__('%s items', 'kotacom-ai'), number_format($total_posts)); ?></span>
+                    <?php
+                    $page_links = paginate_links(array(
+                        'base' => add_query_arg(array('paged' => '%#%', 'date_filter' => $date_filter)),
+                        'format' => '',
+                        'prev_text' => __('&laquo;'),
+                        'next_text' => __('&raquo;'),
+                        'total' => $max_pages,
+                        'current' => $paged
+                    ));
+                    if ($page_links) {
+                        echo '<span class="pagination-links">' . $page_links . '</span>';
+                    }
+                    ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
         <script>
         jQuery(function($){
@@ -600,39 +702,155 @@ class KotacomAI_Admin {
     }
 
     /**
-     * Simple Logs page
+     * Enhanced Logs page with better filtering and display
      */
     public function display_logs_page() {
         if (!current_user_can('manage_options')) return;
+        
+        // Handle clear logs action
+        if (isset($_GET['action']) && $_GET['action'] === 'clear' && wp_verify_nonce($_GET['_wpnonce'], 'clear_logs')) {
+            KotacomAI_Logger::clear_all_logs();
+            wp_redirect(admin_url('admin.php?page=kotacom-ai-logs&cleared=1'));
+            exit;
+        }
+        
         $filter = isset($_GET['result']) ? sanitize_text_field($_GET['result']) : '';
-        $logs = KotacomAI_Logger::get_logs(100, $filter);
+        $action_filter = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
+        $limit = isset($_GET['limit']) ? max(10, min(500, intval($_GET['limit']))) : 100;
+        
+        $logs = KotacomAI_Logger::get_logs($limit, $filter, $action_filter);
+        $stats = KotacomAI_Logger::get_stats();
         ?>
         <div class="wrap">
             <h1><?php _e('Kotacom AI Logs', 'kotacom-ai'); ?></h1>
-            <p>
-                <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs'); ?>" class="button <?php echo $filter==''?'button-primary':''; ?>">All</a>
-                <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs&result=success'); ?>" class="button <?php echo $filter=='success'?'button-primary':''; ?>">Success</a>
-                <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs&result=fail'); ?>" class="button <?php echo $filter=='fail'?'button-primary':''; ?>">Failed</a>
-            </p>
+            
+            <?php if (isset($_GET['cleared'])): ?>
+            <div class="notice notice-success is-dismissible">
+                <p><?php _e('All logs have been cleared successfully.', 'kotacom-ai'); ?></p>
+            </div>
+            <?php endif; ?>
+            
+            <!-- Statistics Dashboard -->
+            <div class="log-stats" style="display: flex; gap: 20px; margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 5px;">
+                <div class="stat-box" style="text-align: center;">
+                    <h3 style="margin: 0; color: #28a745;"><?php echo number_format($stats['total_success']); ?></h3>
+                    <p style="margin: 5px 0; color: #666;"><?php _e('Successful', 'kotacom-ai'); ?></p>
+                </div>
+                <div class="stat-box" style="text-align: center;">
+                    <h3 style="margin: 0; color: #dc3545;"><?php echo number_format($stats['total_failed']); ?></h3>
+                    <p style="margin: 5px 0; color: #666;"><?php _e('Failed', 'kotacom-ai'); ?></p>
+                </div>
+                <div class="stat-box" style="text-align: center;">
+                    <h3 style="margin: 0; color: #007cba;"><?php echo number_format($stats['total_logs']); ?></h3>
+                    <p style="margin: 5px 0; color: #666;"><?php _e('Total Logs', 'kotacom-ai'); ?></p>
+                </div>
+                <div class="stat-box" style="text-align: center;">
+                    <h3 style="margin: 0; color: #ffc107;"><?php echo number_format($stats['success_rate'], 1); ?>%</h3>
+                    <p style="margin: 5px 0; color: #666;"><?php _e('Success Rate', 'kotacom-ai'); ?></p>
+                </div>
+            </div>
+            
+            <!-- Enhanced Filters -->
+            <div class="tablenav top">
+                <div class="alignleft actions">
+                    <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs'); ?>" class="button <?php echo ($filter=='' && $action_filter=='') ? 'button-primary' : ''; ?>"><?php _e('All', 'kotacom-ai'); ?> (<?php echo $stats['total_logs']; ?>)</a>
+                    <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs&result=success'); ?>" class="button <?php echo $filter=='success' ? 'button-primary' : ''; ?>" style="color: #28a745;"><?php _e('Success', 'kotacom-ai'); ?> (<?php echo $stats['total_success']; ?>)</a>
+                    <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs&result=fail'); ?>" class="button <?php echo $filter=='fail' ? 'button-primary' : ''; ?>" style="color: #dc3545;"><?php _e('Failed', 'kotacom-ai'); ?> (<?php echo $stats['total_failed']; ?>)</a>
+                    
+                    <select onchange="window.location.href=this.value;" style="margin-left: 10px;">
+                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-logs'); ?>"><?php _e('All Actions', 'kotacom-ai'); ?></option>
+                        <?php foreach ($stats['actions'] as $action => $count): ?>
+                            <option value="<?php echo admin_url('admin.php?page=kotacom-ai-logs&action=' . urlencode($action)); ?>" <?php selected($action_filter, $action); ?>>
+                                <?php echo esc_html(ucwords(str_replace('_', ' ', $action))); ?> (<?php echo $count; ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    
+                    <select onchange="window.location.href=this.value;" style="margin-left: 10px;">
+                        <option value="<?php echo add_query_arg(['limit' => 50], admin_url('admin.php?page=kotacom-ai-logs')); ?>" <?php selected($limit, 50); ?>>50 <?php _e('entries', 'kotacom-ai'); ?></option>
+                        <option value="<?php echo add_query_arg(['limit' => 100], admin_url('admin.php?page=kotacom-ai-logs')); ?>" <?php selected($limit, 100); ?>>100 <?php _e('entries', 'kotacom-ai'); ?></option>
+                        <option value="<?php echo add_query_arg(['limit' => 200], admin_url('admin.php?page=kotacom-ai-logs')); ?>" <?php selected($limit, 200); ?>>200 <?php _e('entries', 'kotacom-ai'); ?></option>
+                        <option value="<?php echo add_query_arg(['limit' => 500], admin_url('admin.php?page=kotacom-ai-logs')); ?>" <?php selected($limit, 500); ?>>500 <?php _e('entries', 'kotacom-ai'); ?></option>
+                    </select>
+                </div>
+                
+                <div class="alignright actions">
+                    <button type="button" onclick="if(confirm('<?php _e('Are you sure you want to clear all logs?', 'kotacom-ai'); ?>')) location.href='<?php echo wp_nonce_url(admin_url('admin.php?page=kotacom-ai-logs&action=clear'), 'clear_logs'); ?>'" class="button button-secondary"><?php _e('Clear All Logs', 'kotacom-ai'); ?></button>
+                </div>
+            </div>
+            
+            <?php if (empty($logs)): ?>
+            <div class="notice notice-info">
+                <p><?php _e('No logs found matching your criteria.', 'kotacom-ai'); ?></p>
+            </div>
+            <?php else: ?>
             <table class="widefat fixed striped">
-                <thead><tr><th>Date</th><th>Action</th><th>Post</th><th>Status</th><th>Message</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th style="width: 160px;"><?php _e('Date & Time', 'kotacom-ai'); ?></th>
+                        <th style="width: 120px;"><?php _e('Action', 'kotacom-ai'); ?></th>
+                        <th style="width: 80px;"><?php _e('Post', 'kotacom-ai'); ?></th>
+                        <th style="width: 80px;"><?php _e('Status', 'kotacom-ai'); ?></th>
+                        <th><?php _e('Message', 'kotacom-ai'); ?></th>
+                    </tr>
+                </thead>
                 <tbody>
                 <?php foreach($logs as $log): ?>
-                    <tr>
-                        <td><?php echo esc_html($log->ts); ?></td>
-                        <td><?php echo esc_html($log->action); ?></td>
+                    <tr class="<?php echo $log->success ? 'log-success' : 'log-failed'; ?>" style="<?php echo $log->success ? 'background-color: #f0f8f0;' : 'background-color: #fdf2f2;'; ?>">
+                        <td>
+                            <strong><?php echo date_i18n('M j, Y', strtotime($log->ts)); ?></strong><br>
+                            <small style="color: #666;"><?php echo date_i18n('H:i:s', strtotime($log->ts)); ?></small>
+                        </td>
+                        <td>
+                            <span class="action-badge" style="display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; text-transform: uppercase; background: #007cba; color: white;">
+                                <?php echo esc_html(str_replace('_', ' ', $log->action)); ?>
+                            </span>
+                        </td>
                         <td>
                             <?php if($log->post_id): ?>
-                                <a href="<?php echo get_edit_post_link($log->post_id); ?>" target="_blank">#<?php echo $log->post_id; ?></a>
+                                <a href="<?php echo get_edit_post_link($log->post_id); ?>" target="_blank" style="text-decoration: none;">
+                                    <strong>#<?php echo $log->post_id; ?></strong>
+                                </a>
+                                <br><small style="color: #666;"><?php echo esc_html(get_the_title($log->post_id)); ?></small>
+                            <?php else: ?>
+                                <span style="color: #999;">—</span>
                             <?php endif; ?>
                         </td>
-                        <td><?php echo $log->success ? '✅' : '❌'; ?></td>
-                        <td><?php echo esc_html($log->message); ?></td>
+                        <td style="text-align: center;">
+                            <?php if ($log->success): ?>
+                                <span style="font-size: 18px; color: #28a745;" title="<?php _e('Success', 'kotacom-ai'); ?>">✅</span>
+                                <br><small style="color: #28a745; font-weight: bold;"><?php _e('SUCCESS', 'kotacom-ai'); ?></small>
+                            <?php else: ?>
+                                <span style="font-size: 18px; color: #dc3545;" title="<?php _e('Failed', 'kotacom-ai'); ?>">❌</span>
+                                <br><small style="color: #dc3545; font-weight: bold;"><?php _e('FAILED', 'kotacom-ai'); ?></small>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if (!empty($log->message)): ?>
+                                <div style="max-width: 300px; word-wrap: break-word;">
+                                    <?php echo esc_html($log->message); ?>
+                                </div>
+                            <?php else: ?>
+                                <span style="color: #999; font-style: italic;"><?php _e('No message', 'kotacom-ai'); ?></span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
             </table>
+            <?php endif; ?>
+            
+            <p style="margin-top: 20px; color: #666; font-size: 13px;">
+                <strong><?php _e('Note:', 'kotacom-ai'); ?></strong> <?php _e('Logs are automatically cleaned up after 30 days to maintain performance.', 'kotacom-ai'); ?>
+            </p>
         </div>
+        
+        <style>
+        .log-success { border-left: 4px solid #28a745; }
+        .log-failed { border-left: 4px solid #dc3545; }
+        .action-badge { white-space: nowrap; }
+        .stat-box { flex: 1; }
+        </style>
         <?php
     }
 }
