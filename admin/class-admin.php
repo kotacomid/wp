@@ -431,8 +431,9 @@ class KotacomAI_Admin {
      * Display queue status page
      */
     public function display_queue_page() {
-        $queue_status = $this->database->get_queue_status();
-        $failed_items = $this->database->get_failed_queue_items();
+        $queue_manager = new KotacomAI_Queue_Manager();
+        $queue_status = $queue_manager->get_queue_status();
+        $failed_items = $queue_manager->get_failed_items();
         
         // Add help information
         $this->add_queue_help_info();

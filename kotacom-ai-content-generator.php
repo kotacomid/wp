@@ -41,20 +41,7 @@ global $kotacom_ai_current_keyword;
 $kotacom_ai_current_keyword = '';
 
 
-/**
- * Check if Action Scheduler is available
- */
-function kotacom_ai_check_action_scheduler() {
-    if (!function_exists('as_schedule_single_action')) {
-        add_action('admin_notices', function() {
-            echo '<div class="notice notice-warning"><p>';
-            echo __('Kotacom AI: Action Scheduler is recommended for better background processing. Please install WooCommerce or Action Scheduler plugin.', 'kotacom-ai');
-            echo '</p></div>';
-        });
-        return false;
-    }
-    return true;
-}
+
 
 /**
  * Main plugin class
@@ -114,7 +101,7 @@ class KotacomAI {
     private function load_dependencies() {
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-database.php';
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-api-handler.php';
-        require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-background-processor.php';
+        require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-queue-manager.php';
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-content-generator.php';
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-template-manager.php'; 
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-template-editor.php';
@@ -132,7 +119,7 @@ class KotacomAI {
     private function init_components() {
         $this->database = new KotacomAI_Database();
         $this->api_handler = new KotacomAI_API_Handler();
-        $this->background_processor = new KotacomAI_Background_Processor();
+        $this->queue_manager = new KotacomAI_Queue_Manager();
         $this->content_generator = new KotacomAI_Content_Generator();
         $this->template_manager = new KotacomAI_Template_Manager(); 
         $this->template_editor = new KotacomAI_Template_Editor();
@@ -153,8 +140,8 @@ class KotacomAI {
         // Init hook
         add_action('init', array($this, 'init_plugin'));
         
-        // Check Action Scheduler
-        add_action('admin_init', 'kotacom_ai_check_action_scheduler');
+        // Initialize queue processing
+        add_action('init', array($this->queue_manager, 'init'));
         
         // Admin notices for fallback usage
         add_action('admin_notices', array($this, 'show_fallback_notices'));
@@ -253,11 +240,9 @@ class KotacomAI {
      * Plugin deactivation
      */
     public function deactivate() {
-        // Cancel all scheduled actions
-        if (function_exists('as_unschedule_all_actions')) {
-            as_unschedule_all_actions('kotacom_ai_process_batch', array(), 'kotacom-ai');
-            as_unschedule_all_actions('kotacom_ai_process_single_item', array(), 'kotacom-ai');
-        }
+        // Clear scheduled cron events
+        wp_clear_scheduled_hook('kotacom_ai_process_queue');
+        wp_clear_scheduled_hook('kotacom_ai_cleanup_queue');
         
         // Flush rewrite rules
         flush_rewrite_rules();
@@ -671,7 +656,7 @@ class KotacomAI {
             wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
         }
         
-        $status = $this->background_processor->get_queue_stats();
+        $status = $this->queue_manager->get_queue_status();
         
         wp_send_json_success($status);
     }
@@ -703,7 +688,7 @@ class KotacomAI {
         
         $batch_id = sanitize_text_field($_POST['batch_id'] ?? '');
         
-        $result = $this->background_processor->retry_failed_items($batch_id);
+        $result = $this->queue_manager->get_failed_items();
         
         if ($result > 0) {
             wp_send_json_success(array('message' => sprintf(__('%d failed items queued for retry', 'kotacom-ai'), $result)));
