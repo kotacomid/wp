@@ -700,13 +700,14 @@ class KotacomAI {
         $size     = sanitize_text_field($_POST['size'] ?? '1024x1024');
         $post_id  = intval($_POST['post_id'] ?? 0);
         $featured = sanitize_text_field($_POST['featured'] ?? 'no') === 'yes';
+        $provider = sanitize_text_field($_POST['provider'] ?? 'openai');
 
         if (empty($prompt)) {
             wp_send_json_error(array('message' => __('Prompt is required', 'kotacom-ai')));
         }
 
         $img_gen  = new KotacomAI_Image_Generator();
-        $result   = $img_gen->generate_image($prompt, $size);
+        $result   = $img_gen->generate_image($prompt, $size, true, $provider);
 
         if (!$result['success']) {
             wp_send_json_error(array('message' => $result['error']));
@@ -914,7 +915,8 @@ class KotacomAI {
                     'post_content' => $final_content,
                     'post_status' => $post_settings['post_status'],
                     'post_type' => $post_settings['post_type'],
-                    'post_author' => get_current_user_id()
+                    'post_author' => get_current_user_id(),
+                    'post_date' => !empty($_POST['schedule_date']) ? sanitize_text_field($_POST['schedule_date']) : current_time('mysql')
                 );
                 
                 $post_id = wp_insert_post($post_data);

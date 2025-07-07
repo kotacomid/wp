@@ -22,6 +22,8 @@ class KotacomAI_Admin {
     private function init() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+        add_filter('post_row_actions', array($this, 'add_generate_image_row_action'), 10, 2);
+        add_action('admin_footer-edit.php', array($this, 'hero_image_js')); // JS in post list
         add_action('admin_init', array($this, 'register_settings'));
     }
     
@@ -94,6 +96,16 @@ class KotacomAI_Admin {
             'manage_options',
             'kotacom-ai-settings',
             array($this, 'display_settings_page')
+        );
+        
+        // Content Refresh page
+        add_submenu_page(
+            'kotacom-ai',
+            __('Content Refresh', 'kotacom-ai'),
+            __('Refresh', 'kotacom-ai'),
+            'edit_posts',
+            'kotacom-ai-refresh',
+            array($this, 'display_content_refresh_page')
         );
         
         add_submenu_page(
@@ -204,6 +216,9 @@ class KotacomAI_Admin {
         // API Settings - Replicate
         register_setting('kotacom_ai_settings', 'kotacom_ai_replicate_api_key');
         register_setting('kotacom_ai_settings', 'kotacom_ai_replicate_model');
+        
+        // Unsplash
+        register_setting('kotacom_ai_settings', 'kotacom_ai_unsplash_access_key');
         
         // Default Parameters
         register_setting('kotacom_ai_settings', 'kotacom_ai_default_tone');
@@ -395,5 +410,104 @@ class KotacomAI_Admin {
                 'post_author' => get_current_user_id()
             ));
         }
+    }
+
+    /** Row action */
+    public function add_generate_image_row_action($actions, $post) {
+        if ($post->post_type === 'post') {
+            $nonce = wp_create_nonce('kotacom_ai_nonce');
+            $actions['generate_ai_image'] = '<a href="#" class="generate-hero-image" data-post-id="' . $post->ID . '" data-nonce="' . $nonce . '">' . __('Generate Hero Image', 'kotacom-ai') . '</a>';
+        }
+        return $actions;
+    }
+
+    public function hero_image_js() {
+        $screen = get_current_screen();
+        if ($screen->id !== 'edit-post') return;
+        ?>
+        <script>
+        jQuery(function($){
+            $(document).on('click', '.generate-hero-image', function(e){
+                e.preventDefault();
+                var $link = $(this);
+                if($link.hasClass('busy')) return;
+                var postId = $link.data('post-id');
+                var nonce  = $link.data('nonce');
+                var prompt = 'High quality hero image for: ' + $link.closest('tr').find('.row-title').text();
+                $link.addClass('busy').text('Generating...');
+                $.post(ajaxurl, {
+                    action: 'kotacom_generate_image',
+                    nonce: nonce,
+                    prompt: prompt,
+                    post_id: postId,
+                    featured: 'yes',
+                    provider: 'unsplash'
+                }, function(res){
+                    if(res.success){
+                        alert('Hero image set!');
+                    }else{
+                        alert('Error: '+res.data.message);
+                    }
+                    $link.removeClass('busy').text('Generate Hero Image');
+                });
+            });
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * Content Refresh admin page
+     */
+    public function display_content_refresh_page() {
+        if (!current_user_can('edit_posts')) return;
+        $posts = get_posts(array('numberposts' => 20, 'post_status' => 'publish', 'post_type' => 'post', 'orderby' => 'date', 'order' => 'DESC'));
+        $nonce = wp_create_nonce('kotacom_ai_nonce');
+        ?>
+        <div class="wrap">
+            <h1><?php _e('Content Refresh', 'kotacom-ai'); ?></h1>
+            <p><?php _e('Select posts, enter a refresh prompt, and let AI update the content.', 'kotacom-ai'); ?></p>
+            <textarea id="refresh-prompt" style="width:100%;min-height:120px;" placeholder="<?php _e('e.g., Rewrite intro, update stats to 2025, add FAQ… Use {current_content} and {title} placeholders.', 'kotacom-ai'); ?>"></textarea>
+            <table class="widefat fixed striped">
+                <thead><tr><th><input type="checkbox" id="select-all" /></th><th><?php _e('Title', 'kotacom-ai'); ?></th><th><?php _e('Date', 'kotacom-ai'); ?></th></tr></thead>
+                <tbody>
+                <?php foreach($posts as $p): ?>
+                    <tr>
+                        <td><input type="checkbox" class="post-select" value="<?php echo esc_attr($p->ID); ?>" /></td>
+                        <td><?php echo esc_html($p->post_title); ?></td>
+                        <td><?php echo esc_html(get_the_date('', $p)); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <p>
+                <button class="button button-primary" id="run-refresh" data-nonce="<?php echo esc_attr($nonce); ?>"><?php _e('Run Refresh', 'kotacom-ai'); ?></button>
+            </p>
+        </div>
+        <script>
+        jQuery(function($){
+            $('#select-all').on('change', function(){
+                $('.post-select').prop('checked', $(this).is(':checked'));
+            });
+            $('#run-refresh').on('click', function(){
+                var ids = $('.post-select:checked').map(function(){return $(this).val();}).get();
+                if(ids.length === 0){alert('Select at least one post');return;}
+                var prompt = $('#refresh-prompt').val();
+                if(!prompt){alert('Enter refresh prompt');return;}
+                var nonce = $(this).data('nonce');
+                $(this).prop('disabled', true).text('Processing…');
+                $.post(ajaxurl, {
+                    action: 'kotacom_refresh_posts',
+                    nonce: nonce,
+                    post_ids: ids,
+                    refresh_prompt: prompt
+                }, function(res){
+                    alert(res.success ? 'Refresh queued!' : res.data.message);
+                    $('#run-refresh').prop('disabled', false).text('Run Refresh');
+                });
+            });
+        });
+        </script>
+        <?php
     }
 }

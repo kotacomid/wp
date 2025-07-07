@@ -237,6 +237,10 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
                             <label for="post-tags"><?php _e('Tags:', 'kotacom-ai'); ?></label>
                             <input type="text" id="post-tags" name="tags" placeholder="<?php _e('Comma-separated tags', 'kotacom-ai'); ?>">
                         </div>
+                        <div class="setting-field">
+                            <label for="schedule-date"><?php _e('Schedule Date:', 'kotacom-ai'); ?></label>
+                            <input type="datetime-local" id="schedule-date" name="schedule_date" />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -726,7 +730,8 @@ jQuery(document).ready(function($) {
                 post_type: $('#post-type').val(),
                 post_status: $('#post-status').val(),
                 categories: $('#post-categories').val() || [],
-                tags: $('#post-tags').val()
+                tags: $('#post-tags').val(),
+                schedule_date: $('#schedule-date').val()
             },
             success: function(response) {
                 displayResults(response);
