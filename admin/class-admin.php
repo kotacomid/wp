@@ -479,12 +479,22 @@ class KotacomAI_Admin {
                 </select>
                 <input type="checkbox" id="update-date" style="margin-left:15px;" /> <label for="update-date"><?php _e('Update post date to now', 'kotacom-ai'); ?></label>
             </p>
+            <p>
+                <label for="cat-filter"><strong><?php _e('Filter by Category:', 'kotacom-ai'); ?></strong></label>
+                <select id="cat-filter">
+                    <option value="all"><?php _e('All Categories', 'kotacom-ai'); ?></option>
+                    <?php $all_cats = get_categories(array('hide_empty'=>false));
+                    foreach($all_cats as $c): ?>
+                        <option value="<?php echo esc_attr($c->term_id); ?>"><?php echo esc_html($c->name); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </p>
             <textarea id="refresh-prompt" style="width:100%;min-height:120px;" placeholder="<?php _e('e.g., Rewrite intro, update stats to 2025, add FAQ… Use {current_content} and {title} placeholders.', 'kotacom-ai'); ?>"></textarea>
-            <table class="widefat fixed striped">
+            <table class="widefat fixed striped" id="refresh-table">
                 <thead><tr><th><input type="checkbox" id="select-all" /></th><th><?php _e('Title', 'kotacom-ai'); ?></th><th><?php _e('Date', 'kotacom-ai'); ?></th></tr></thead>
                 <tbody>
-                <?php foreach($posts as $p): ?>
-                    <tr>
+                <?php foreach($posts as $p): $cats = wp_get_post_categories($p->ID); ?>
+                    <tr data-cats="<?php echo esc_attr(implode(',', $cats)); ?>">
                         <td><input type="checkbox" class="post-select" value="<?php echo esc_attr($p->ID); ?>" /></td>
                         <td><?php echo esc_html($p->post_title); ?></td>
                         <td><?php echo esc_html(get_the_date('', $p)); ?></td>
@@ -494,12 +504,27 @@ class KotacomAI_Admin {
             </table>
             <p>
                 <button class="button button-primary" id="run-refresh" data-nonce="<?php echo esc_attr($nonce); ?>"><?php _e('Run Refresh', 'kotacom-ai'); ?></button>
+                <span id="refresh-progress" style="margin-left:15px;"></span>
             </p>
         </div>
         <script>
         jQuery(function($){
             $('#select-all').on('change', function(){
                 $('.post-select').prop('checked', $(this).is(':checked'));
+            });
+
+            // Category filter
+            $('#cat-filter').on('change', function(){
+                var val = $(this).val();
+                $('#refresh-table tbody tr').each(function(){
+                    var cats = $(this).data('cats').toString().split(',');
+                    if(val==='all' || cats.includes(val)){
+                        $(this).show();
+                    }else{
+                        $(this).hide();
+                        $(this).find('.post-select').prop('checked', false);
+                    }
+                });
             });
 
             // Load template content into textarea
@@ -522,17 +547,37 @@ class KotacomAI_Admin {
                 var templateId = $('#refresh-template').val();
                 var updateDate = $('#update-date').is(':checked') ? 'yes' : 'no';
                 $(this).prop('disabled', true).text('Processing…');
-                $.post(ajaxurl, {
-                    action: 'kotacom_refresh_posts',
-                    nonce: nonce,
-                    post_ids: ids,
-                    refresh_prompt: prompt,
-                    template_id: templateId,
-                    update_date: updateDate
-                }, function(res){
-                    alert(res.success ? 'Refresh queued!' : res.data.message);
-                    $('#run-refresh').prop('disabled', false).text('Run Refresh');
-                });
+                var batchSize = 20;
+                var batches = [];
+                for(var i=0;i<ids.length;i+=batchSize){ batches.push(ids.slice(i,i+batchSize)); }
+
+                var completed = 0;
+                $('#refresh-progress').text('0 / '+ids.length);
+
+                function processBatch(idx){
+                    if(idx>=batches.length){
+                        $('#run-refresh').prop('disabled', false).text('Run Refresh');
+                        alert('Refresh completed');
+                        return;
+                    }
+                    $.post(ajaxurl, {
+                        action: 'kotacom_refresh_posts',
+                        nonce: nonce,
+                        post_ids: batches[idx],
+                        refresh_prompt: prompt,
+                        template_id: templateId,
+                        update_date: updateDate
+                    }, function(res){
+                        completed += batches[idx].length;
+                        $('#refresh-progress').text(completed+' / '+ids.length);
+                        processBatch(idx+1);
+                    }).fail(function(){
+                        completed += batches[idx].length;
+                        processBatch(idx+1);
+                    });
+                }
+
+                processBatch(0);
             });
         });
         </script>
