@@ -148,6 +148,7 @@ class KotacomAI_Template_Manager {
         add_shortcode('ai_template', array($this, 'shortcode_ai_template'));
         add_shortcode('ai_conditional', array($this, 'shortcode_ai_conditional'));
         add_shortcode('ai_list', array($this, 'shortcode_ai_list')); // New shortcode
+        add_shortcode('ai_image', array($this, 'shortcode_ai_image')); // Image shortcode
     }
     
     /**
@@ -290,6 +291,58 @@ class KotacomAI_Template_Manager {
         }
 
         return $output;
+    }
+    
+    /**
+     * AI Image shortcode handler
+     * Usage: [ai_image prompt="A sunset over mountains" size="1024x1024" featured="yes" alt=""]
+     */
+    public function shortcode_ai_image($atts, $content = '') {
+        $atts = shortcode_atts(array(
+            'prompt'   => '',
+            'size'     => '1024x1024',
+            'alt'      => '',
+            'featured' => 'no', // yes/no – set as featured image
+        ), $atts);
+
+        if (empty($atts['prompt'])) {
+            return '<!-- ai_image: prompt missing -->';
+        }
+
+        // Replace {keyword} placeholder
+        if (strpos($atts['prompt'], '{keyword}') !== false) {
+            $atts['prompt'] = str_replace('{keyword}', $this->get_current_keyword(), $atts['prompt']);
+        }
+
+        $img_gen = new KotacomAI_Image_Generator();
+        $result  = $img_gen->generate_image($atts['prompt'], $atts['size'], empty($atts['alt']));
+
+        if (!$result['success']) {
+            return '<!-- ai_image error: ' . esc_html($result['error']) . ' -->';
+        }
+
+        $img_url = esc_url($result['url']);
+        $alt     = !empty($atts['alt']) ? esc_attr($atts['alt']) : esc_attr($result['alt']);
+
+        // Optionally set as featured image (only on singular post edit screen)
+        if ($atts['featured'] === 'yes' && is_singular()) {
+            global $post;
+            if ($post && !has_post_thumbnail($post->ID)) {
+                if (!function_exists('media_sideload_image')) {
+                    require_once ABSPATH . 'wp-admin/includes/file.php';
+                    require_once ABSPATH . 'wp-admin/includes/media.php';
+                    require_once ABSPATH . 'wp-admin/includes/image.php';
+                }
+                // Sideload image and set as featured
+                $attachment_id = media_sideload_image($img_url, $post->ID, $alt, 'id');
+                if (!is_wp_error($attachment_id)) {
+                    set_post_thumbnail($post->ID, $attachment_id);
+                }
+            }
+        }
+
+        // Return <img> tag for embedding
+        return '<img class="ai-generated-image" src="' . $img_url . '" alt="' . $alt . '" loading="lazy" />';
     }
     
     /**

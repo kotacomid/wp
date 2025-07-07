@@ -118,6 +118,7 @@ class KotacomAI {
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-content-generator.php';
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-template-manager.php'; 
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-template-editor.php';
+        require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-image-generator.php';
         
         if (is_admin()) {
             require_once KOTACOM_AI_PLUGIN_DIR . 'admin/class-admin.php';
@@ -223,6 +224,10 @@ class KotacomAI {
         
         // Enhanced AJAX handler for generator-post-template page
         add_action('wp_ajax_kotacom_generate_content_enhanced', array($this, 'ajax_generate_content_enhanced'));
+
+        // Image generation
+        add_action('wp_ajax_kotacom_generate_image', array($this, 'ajax_generate_image'));
+        add_action('wp_ajax_kotacom_refresh_posts', array($this, 'ajax_refresh_posts'));
     }
     
     /**
@@ -680,6 +685,56 @@ class KotacomAI {
         }
     }
     
+    /**
+     * AJAX: Generate AI Image and optionally set as featured image
+     * POST params: prompt, size (optional), post_id (optional), featured (yes/no)
+     */
+    public function ajax_generate_image() {
+        check_ajax_referer('kotacom_ai_nonce', 'nonce');
+
+        if (!current_user_can('upload_files')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+        }
+
+        $prompt   = sanitize_text_field($_POST['prompt'] ?? '');
+        $size     = sanitize_text_field($_POST['size'] ?? '1024x1024');
+        $post_id  = intval($_POST['post_id'] ?? 0);
+        $featured = sanitize_text_field($_POST['featured'] ?? 'no') === 'yes';
+
+        if (empty($prompt)) {
+            wp_send_json_error(array('message' => __('Prompt is required', 'kotacom-ai')));
+        }
+
+        $img_gen  = new KotacomAI_Image_Generator();
+        $result   = $img_gen->generate_image($prompt, $size);
+
+        if (!$result['success']) {
+            wp_send_json_error(array('message' => $result['error']));
+        }
+
+        // Sideload image into media library
+        if (!function_exists('media_sideload_image')) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+        }
+
+        $attachment_id = 0;
+        if ($post_id) {
+            $attachment_id = media_sideload_image($result['url'], $post_id, $result['alt'], 'id');
+            // Set featured image if requested and none exists
+            if ($featured && !is_wp_error($attachment_id) && !has_post_thumbnail($post_id)) {
+                set_post_thumbnail($post_id, $attachment_id);
+            }
+        }
+
+        wp_send_json_success(array(
+            'url'        => $result['url'],
+            'alt'        => $result['alt'],
+            'attachment' => $attachment_id,
+        ));
+    }
+    
     // NEW AJAX Handlers for Provider Management
     public function ajax_check_provider_status() {
         check_ajax_referer('kotacom_ai_nonce', 'nonce');
@@ -913,6 +968,61 @@ class KotacomAI {
         $prompt .= "\nGenerate high-quality, engaging content that follows the template structure while being informative and valuable to readers.";
         
         return $prompt;
+    }
+
+    /**
+     * Bulk Refresh / Content Update
+     * POST: post_ids[] (array of IDs), refresh_prompt (string)
+     * Prompt can contain placeholders {current_content} and {title}
+     */
+    public function ajax_refresh_posts() {
+        check_ajax_referer('kotacom_ai_nonce', 'nonce');
+
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+        }
+
+        $post_ids       = isset($_POST['post_ids']) && is_array($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : array();
+        $refresh_prompt = sanitize_textarea_field($_POST['refresh_prompt'] ?? '');
+
+        if (empty($post_ids) || empty($refresh_prompt)) {
+            wp_send_json_error(array('message' => __('Post IDs and refresh prompt are required', 'kotacom-ai')));
+        }
+
+        $api_handler = new KotacomAI_API_Handler();
+        $results     = array();
+
+        foreach ($post_ids as $post_id) {
+            $post = get_post($post_id);
+            if (!$post || $post->post_type === 'revision') {
+                $results[] = array('post_id' => $post_id, 'status' => 'error', 'message' => 'Invalid post');
+                continue;
+            }
+
+            $prompt = str_replace(array('{current_content}', '{title}'), array(wp_strip_all_tags($post->post_content), $post->post_title), $refresh_prompt);
+
+            // Generate refreshed content (simple params)
+            $gen = $api_handler->generate_content($prompt, array('tone' => 'informative', 'length' => 'unlimited'));
+
+            if (!$gen['success']) {
+                $results[] = array('post_id' => $post_id, 'status' => 'error', 'message' => $gen['error']);
+                continue;
+            }
+
+            // Save new revision/draft
+            $new_post = array(
+                'ID'           => $post_id,
+                'post_content' => $gen['content'],
+            );
+
+            // Save as a revision so editor can compare (or draft override)
+            wp_save_post_revision($post_id);
+            wp_update_post($new_post);
+
+            $results[] = array('post_id' => $post_id, 'status' => 'success');
+        }
+
+        wp_send_json_success(array('results' => $results));
     }
 }
 
