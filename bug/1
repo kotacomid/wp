@@ -1,0 +1,46 @@
+keyword when bulk delete
+4c7b8326c605d5b04de53d70f38cfa2c0d6954185dfa7c47409fa3a68e422435:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+admin.php?page=kotacom-ai-keywords:1140 Uncaught ReferenceError: deleteSelectedKeywords is not defined
+    at HTMLButtonElement.<anonymous> (admin.php?page=kotacom-ai-keywords:1140:17)
+    at HTMLButtonElement.dispatch (jquery.js?ver=3.7.1:5145:27)
+    at elemData.handle (jquery.js?ver=3.7.1:4949:28)
+(anonymous) @ admin.php?page=kotacom-ai-keywords:1140
+dispatch @ jquery.js?ver=3.7.1:5145
+elemData.handle @ jquery.js?ver=3.7.1:4949
+
+
+when bulk change tag
+blank page
+
+
+generator
+bulk generator error
+Uncaught SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at loadProviderModels (admin.php?page=kotacom-ai:1411:29)
+    at HTMLSelectElement.<anonymous> (admin.php?page=kotacom-ai:1290:13)
+    at HTMLSelectElement.dispatch (jquery.js?ver=3.7.1:5145:27)
+    at elemData.handle (jquery.js?ver=3.7.1:4949:28)Understand this error
+4c7b8326c605d5b04de53d70f38cfa2c0d6954185dfa7c47409fa3a68e422435:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUTUnderstand this error
+/wordpress/wp-admin/admin-ajax.php:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+admin.js?ver=1.2.0:90 AJAX Error: Internal Server Error
+
+single generator - but funttion working
+VM475:1 Uncaught SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at loadProviderModels (admin.php?page=kotacom-ai:1411:29)
+    at HTMLSelectElement.<anonymous> (admin.php?page=kotacom-ai:1290:13)
+    at HTMLSelectElement.dispatch (jquery.js?ver=3.7.1:5145:27)
+    at elemData.handle (jquery.js?ver=3.7.1:4949:28)
+loadProviderModels @ admin.php?page=kotacom-ai:1411
+(anonymous) @ admin.php?page=kotacom-ai:1290
+dispatch @ jquery.js?ver=3.7.1:5145
+elemData.handle @ jquery.js?ver=3.7.1:4949
+admin.php:1733  GET https://secure.gravatar.com/avatar/4c7b8326c605d5b04de53d70f38cfa2c0d6954185dfa7c47409fa3a68e422435?s=26&d=mm&r=g net::ERR_CONNECTION_TIMED_OUT
+
+refresh. rewrite in bulk Content Refresh
+please add to quene system
+
+
+
+
