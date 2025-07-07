@@ -986,6 +986,8 @@ class KotacomAI {
 
         $post_ids       = isset($_POST['post_ids']) && is_array($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : array();
         $refresh_prompt = sanitize_textarea_field($_POST['refresh_prompt'] ?? '');
+        $template_id    = intval($_POST['template_id'] ?? 0);
+        $update_date    = sanitize_text_field($_POST['update_date'] ?? 'no') === 'yes';
 
         if (empty($post_ids) || empty($refresh_prompt)) {
             wp_send_json_error(array('message' => __('Post IDs and refresh prompt are required', 'kotacom-ai')));
@@ -1001,7 +1003,17 @@ class KotacomAI {
                 continue;
             }
 
-            $prompt = str_replace(array('{current_content}', '{title}'), array(wp_strip_all_tags($post->post_content), $post->post_title), $refresh_prompt);
+            $prompt_base = $refresh_prompt;
+            if($template_id){
+                $template_post = get_post($template_id);
+                if($template_post){ $prompt_base = $template_post->post_content; }
+            }
+
+            $prompt = str_replace(
+                array('{current_content}', '{title}', '{published_date}'),
+                array(wp_strip_all_tags($post->post_content), $post->post_title, get_the_date('', $post)),
+                $prompt_base
+            );
 
             // Generate refreshed content (simple params)
             $gen = $api_handler->generate_content($prompt, array('tone' => 'informative', 'length' => 'unlimited'));
@@ -1019,6 +1031,10 @@ class KotacomAI {
 
             // Save as a revision so editor can compare (or draft override)
             wp_save_post_revision($post_id);
+
+            if($update_date){
+                $new_post['post_date'] = current_time('mysql');
+            }
             wp_update_post($new_post);
 
             $results[] = array('post_id' => $post_id, 'status' => 'success');

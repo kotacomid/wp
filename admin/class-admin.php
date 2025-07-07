@@ -467,6 +467,18 @@ class KotacomAI_Admin {
         <div class="wrap">
             <h1><?php _e('Content Refresh', 'kotacom-ai'); ?></h1>
             <p><?php _e('Select posts, enter a refresh prompt, and let AI update the content.', 'kotacom-ai'); ?></p>
+            <p>
+                <label for="refresh-template"><strong><?php _e('Refresh Template:', 'kotacom-ai'); ?></strong></label>
+                <select id="refresh-template">
+                    <option value=""><?php _e('— Select template —', 'kotacom-ai'); ?></option>
+                    <?php
+                    $templates = get_posts(array('post_type' => 'kotacom_template', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC'));
+                    foreach($templates as $t): ?>
+                        <option value="<?php echo esc_attr($t->ID); ?>"><?php echo esc_html($t->post_title); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="checkbox" id="update-date" style="margin-left:15px;" /> <label for="update-date"><?php _e('Update post date to now', 'kotacom-ai'); ?></label>
+            </p>
             <textarea id="refresh-prompt" style="width:100%;min-height:120px;" placeholder="<?php _e('e.g., Rewrite intro, update stats to 2025, add FAQ… Use {current_content} and {title} placeholders.', 'kotacom-ai'); ?>"></textarea>
             <table class="widefat fixed striped">
                 <thead><tr><th><input type="checkbox" id="select-all" /></th><th><?php _e('Title', 'kotacom-ai'); ?></th><th><?php _e('Date', 'kotacom-ai'); ?></th></tr></thead>
@@ -489,18 +501,34 @@ class KotacomAI_Admin {
             $('#select-all').on('change', function(){
                 $('.post-select').prop('checked', $(this).is(':checked'));
             });
+
+            // Load template content into textarea
+            $('#refresh-template').on('change', function(){
+                var tid = $(this).val();
+                if(!tid){ $('#refresh-prompt').val(''); return; }
+                $.post(ajaxurl, { action: 'kotacom_get_template', nonce: '<?php echo esc_js($nonce); ?>', template_id: tid }, function(res){
+                    if(res.success){
+                        if(res.data.template){ $('#refresh-prompt').val(res.data.template.content); }
+                    }
+                });
+            });
+
             $('#run-refresh').on('click', function(){
                 var ids = $('.post-select:checked').map(function(){return $(this).val();}).get();
                 if(ids.length === 0){alert('Select at least one post');return;}
                 var prompt = $('#refresh-prompt').val();
                 if(!prompt){alert('Enter refresh prompt');return;}
                 var nonce = $(this).data('nonce');
+                var templateId = $('#refresh-template').val();
+                var updateDate = $('#update-date').is(':checked') ? 'yes' : 'no';
                 $(this).prop('disabled', true).text('Processing…');
                 $.post(ajaxurl, {
                     action: 'kotacom_refresh_posts',
                     nonce: nonce,
                     post_ids: ids,
-                    refresh_prompt: prompt
+                    refresh_prompt: prompt,
+                    template_id: templateId,
+                    update_date: updateDate
                 }, function(res){
                     alert(res.success ? 'Refresh queued!' : res.data.message);
                     $('#run-refresh').prop('disabled', false).text('Run Refresh');
