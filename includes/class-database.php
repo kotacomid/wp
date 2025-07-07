@@ -454,4 +454,65 @@ class KotacomAI_Database {
             )
         );
     }
+    
+    // Batch methods
+    public function create_batch($batch_id, $total_items) {
+        return $this->wpdb->insert(
+            $this->batches_table,
+            array(
+                'batch_id' => $batch_id,
+                'total_items' => $total_items,
+                'completed_items' => 0,
+                'failed_items' => 0,
+                'status' => 'processing'
+            ),
+            array('%s', '%d', '%d', '%d', '%s')
+        );
+    }
+    
+    public function get_batch_status($batch_id) {
+        return $this->wpdb->get_row(
+            $this->wpdb->prepare(
+                "SELECT * FROM {$this->batches_table} WHERE batch_id = %s",
+                $batch_id
+            ),
+            ARRAY_A
+        );
+    }
+    
+    public function update_batch_progress($batch_id) {
+        // Get current batch stats from queue items
+        $stats = $this->wpdb->get_row(
+            $this->wpdb->prepare(
+                "SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+                 FROM {$this->queue_table} 
+                 WHERE batch_id = %s",
+                $batch_id
+            )
+        );
+        
+        if ($stats) {
+            $status = 'processing';
+            if ($stats->completed + $stats->failed >= $stats->total) {
+                $status = 'completed';
+            }
+            
+            return $this->wpdb->update(
+                $this->batches_table,
+                array(
+                    'completed_items' => $stats->completed,
+                    'failed_items' => $stats->failed,
+                    'status' => $status
+                ),
+                array('batch_id' => $batch_id),
+                array('%d', '%d', '%s'),
+                array('%s')
+            );
+        }
+        
+        return false;
+    }
 }

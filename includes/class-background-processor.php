@@ -359,6 +359,39 @@ class KotacomAI_Background_Processor {
     }
     
     /**
+     * Start batch processing for a specific batch
+     */
+    public function start_batch_processing($batch_id) {
+        global $wpdb;
+        
+        $queue_table = $wpdb->prefix . 'kotacom_queue';
+        
+        // Get all pending items for this batch
+        $pending_items = $wpdb->get_results($wpdb->prepare(
+            "SELECT id FROM {$queue_table} WHERE batch_id = %s AND status = 'pending'",
+            $batch_id
+        ));
+        
+        if (empty($pending_items)) {
+            return false;
+        }
+        
+        // Schedule processing for each item with staggered timing to prevent rate limiting
+        $delay = 0;
+        foreach ($pending_items as $item) {
+            as_schedule_single_action(
+                time() + $delay,
+                'kotacom_ai_process_single_item',
+                array('queue_id' => $item->id),
+                'kotacom-ai'
+            );
+            $delay += 10; // 10 seconds between each item
+        }
+        
+        return count($pending_items);
+    }
+    
+    /**
      * Get overall queue statistics
      */
     public function get_queue_stats() {

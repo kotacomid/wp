@@ -220,6 +220,9 @@ class KotacomAI {
                 wp_send_json_error(['message' => 'Failed to create post']);
             }
         });
+        
+        // Enhanced AJAX handler for generator-post-template page
+        add_action('wp_ajax_kotacom_generate_content_enhanced', array($this, 'ajax_generate_content_enhanced'));
     }
     
     /**
@@ -256,6 +259,47 @@ class KotacomAI {
     public function init_plugin() {
         // Load text domain
         load_plugin_textdomain('kotacom-ai', false, dirname(plugin_basename(__FILE__)) . '/languages');
+        
+        // Register custom post types
+        $this->register_post_types();
+    }
+    
+    /**
+     * Register custom post types
+     */
+    private function register_post_types() {
+        // Register kotacom_template post type
+        register_post_type('kotacom_template', array(
+            'labels' => array(
+                'name' => __('AI Templates', 'kotacom-ai'),
+                'singular_name' => __('AI Template', 'kotacom-ai'),
+                'add_new' => __('Add New Template', 'kotacom-ai'),
+                'add_new_item' => __('Add New AI Template', 'kotacom-ai'),
+                'edit_item' => __('Edit AI Template', 'kotacom-ai'),
+                'new_item' => __('New AI Template', 'kotacom-ai'),
+                'view_item' => __('View AI Template', 'kotacom-ai'),
+                'search_items' => __('Search AI Templates', 'kotacom-ai'),
+                'not_found' => __('No AI templates found', 'kotacom-ai'),
+                'not_found_in_trash' => __('No AI templates found in trash', 'kotacom-ai'),
+            ),
+            'public' => true,
+            'has_archive' => false,
+            'publicly_queryable' => true,
+            'show_ui' => true,
+            'show_in_menu' => 'kotacom-ai',
+            'show_in_admin_bar' => false,
+            'show_in_nav_menus' => false,
+            'can_export' => true,
+            'exclude_from_search' => true,
+            'capability_type' => 'post',
+            'map_meta_cap' => true,
+            'hierarchical' => false,
+            'rewrite' => array('slug' => 'ai-templates'),
+            'query_var' => true,
+            'supports' => array('title', 'editor', 'excerpt', 'custom-fields'),
+            'menu_icon' => 'dashicons-media-document',
+            'description' => __('Templates for AI content generation', 'kotacom-ai')
+        ));
     }
     
     /**
@@ -681,6 +725,194 @@ class KotacomAI {
         } else {
             wp_send_json_error(array('message' => $result['error']));
         }
+    }
+    
+    /**
+     * Enhanced AJAX handler for generator-post-template page
+     * Supports both single and bulk generation with templates
+     */
+    public function ajax_generate_content_enhanced() {
+        check_ajax_referer('kotacom_ai_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+        }
+        
+        // Get and validate inputs
+        $keywords = isset($_POST['keywords']) && is_array($_POST['keywords']) ? array_map('sanitize_text_field', $_POST['keywords']) : array();
+        $template_id = intval($_POST['template_id'] ?? 0);
+        
+        if (empty($keywords)) {
+            wp_send_json_error(array('message' => __('Keywords are required', 'kotacom-ai')));
+        }
+        
+        if (empty($template_id)) {
+            wp_send_json_error(array('message' => __('Template is required', 'kotacom-ai')));
+        }
+        
+        // Get template content
+        $template_post = get_post($template_id);
+        if (!$template_post || $template_post->post_type !== 'kotacom_template') {
+            wp_send_json_error(array('message' => __('Invalid template', 'kotacom-ai')));
+        }
+        
+        $template_content = $template_post->post_content;
+        
+        // Get generation parameters
+        $parameters = array(
+            'tone' => sanitize_text_field($_POST['tone'] ?? 'informative'),
+            'length' => sanitize_text_field($_POST['length'] ?? '500'),
+            'audience' => sanitize_text_field($_POST['audience'] ?? 'general'),
+            'niche' => sanitize_text_field($_POST['niche'] ?? '')
+        );
+        
+        // Get post settings
+        $post_settings = array(
+            'post_type' => sanitize_text_field($_POST['post_type'] ?? 'post'),
+            'post_status' => sanitize_text_field($_POST['post_status'] ?? 'draft'),
+            'categories' => isset($_POST['categories']) && is_array($_POST['categories']) ? array_map('intval', $_POST['categories']) : array(),
+            'tags' => sanitize_text_field($_POST['tags'] ?? '')
+        );
+        
+        // Provider override
+        $provider_override = array();
+        if (!empty($_POST['session_provider'])) {
+            $provider_override['provider'] = sanitize_text_field($_POST['session_provider']);
+            if (!empty($_POST['session_model'])) {
+                $provider_override['model'] = sanitize_text_field($_POST['session_model']);
+            }
+        }
+        
+        $results = array();
+        $success_count = 0;
+        $error_count = 0;
+        
+        // Determine if this is single or bulk generation
+        $is_bulk = count($keywords) > 1;
+        
+        if ($is_bulk) {
+            // Bulk generation - use queue system
+            $batch_id = 'batch_' . time() . '_' . wp_generate_password(8, false);
+            
+            // Create batch record
+            $this->database->create_batch($batch_id, count($keywords));
+            
+            foreach ($keywords as $keyword) {
+                // Create AI prompt by replacing template placeholders
+                $ai_prompt = $this->create_ai_prompt_from_template($template_content, $keyword, $parameters);
+                
+                // Add to queue
+                $queue_item_id = $this->database->add_to_queue($keyword, $ai_prompt, $parameters, $post_settings);
+                
+                if ($queue_item_id) {
+                    $this->database->update_queue_batch_id($queue_item_id, $batch_id);
+                    $results[] = array(
+                        'keyword' => $keyword,
+                        'status' => 'queued',
+                        'message' => __('Added to generation queue', 'kotacom-ai'),
+                        'queue_id' => $queue_item_id
+                    );
+                    $success_count++;
+                } else {
+                    $results[] = array(
+                        'keyword' => $keyword,
+                        'status' => 'failed',
+                        'message' => __('Failed to add to queue', 'kotacom-ai')
+                    );
+                    $error_count++;
+                }
+            }
+            
+            // Start processing the batch
+            if ($success_count > 0) {
+                $this->background_processor->start_batch_processing($batch_id);
+                
+                wp_send_json_success(array(
+                    'message' => sprintf(__('Bulk generation started! %d items queued for processing.', 'kotacom-ai'), $success_count),
+                    'batch_id' => $batch_id,
+                    'type' => 'bulk',
+                    'results' => $results,
+                    'success_count' => $success_count,
+                    'error_count' => $error_count
+                ));
+            } else {
+                wp_send_json_error(array('message' => __('Failed to start bulk generation', 'kotacom-ai')));
+            }
+            
+        } else {
+            // Single generation - process immediately
+            $keyword = $keywords[0];
+            
+            // Create AI prompt by replacing template placeholders
+            $ai_prompt = $this->create_ai_prompt_from_template($template_content, $keyword, $parameters);
+            
+            // Generate content immediately
+            $generation_result = $this->api_handler->generate_content($ai_prompt, $parameters);
+            
+            if ($generation_result['success']) {
+                // Replace template placeholders in generated content
+                $final_content = str_replace('{keyword}', $keyword, $generation_result['content']);
+                
+                // Create the post
+                $post_data = array(
+                    'post_title' => $keyword,
+                    'post_content' => $final_content,
+                    'post_status' => $post_settings['post_status'],
+                    'post_type' => $post_settings['post_type'],
+                    'post_author' => get_current_user_id()
+                );
+                
+                $post_id = wp_insert_post($post_data);
+                
+                if ($post_id && !is_wp_error($post_id)) {
+                    // Add categories and tags
+                    if (!empty($post_settings['categories'])) {
+                        wp_set_post_categories($post_id, $post_settings['categories']);
+                    }
+                    
+                    if (!empty($post_settings['tags'])) {
+                        wp_set_post_tags($post_id, explode(',', $post_settings['tags']));
+                    }
+                    
+                    wp_send_json_success(array(
+                        'message' => __('Content generated successfully!', 'kotacom-ai'),
+                        'type' => 'single',
+                        'post_id' => $post_id,
+                        'edit_link' => get_edit_post_link($post_id),
+                        'view_link' => get_permalink($post_id),
+                        'keyword' => $keyword
+                    ));
+                } else {
+                    wp_send_json_error(array('message' => __('Failed to create post', 'kotacom-ai')));
+                }
+            } else {
+                wp_send_json_error(array('message' => $generation_result['error']));
+            }
+        }
+    }
+    
+    /**
+     * Create AI prompt from template and keyword
+     */
+    private function create_ai_prompt_from_template($template_content, $keyword, $parameters) {
+        // Create a comprehensive prompt for AI
+        $prompt = "Generate content for the keyword: {$keyword}\n\n";
+        $prompt .= "Use this template structure as a guide:\n";
+        $prompt .= $template_content . "\n\n";
+        $prompt .= "Instructions:\n";
+        $prompt .= "- Replace {keyword} placeholders with: {$keyword}\n";
+        $prompt .= "- Follow the template structure but expand with detailed, relevant content\n";
+        $prompt .= "- Tone: " . $parameters['tone'] . "\n";
+        $prompt .= "- Target length: " . $parameters['length'] . " words\n";
+        $prompt .= "- Target audience: " . $parameters['audience'] . "\n";
+        
+        if (!empty($parameters['niche'])) {
+            $prompt .= "- Industry/Niche: " . $parameters['niche'] . "\n";
+        }
+        
+        $prompt .= "\nGenerate high-quality, engaging content that follows the template structure while being informative and valuable to readers.";
+        
+        return $prompt;
     }
 }
 

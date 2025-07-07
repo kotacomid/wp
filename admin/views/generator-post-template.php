@@ -35,7 +35,7 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
                                 <?php foreach ($providers as $key => $provider): ?>
                                     <option value="<?php echo esc_attr($key); ?>" 
                                             data-free="<?php echo $api_handler->is_free_tier($key) ? 'true' : 'false'; ?>"
-                                            data-models='<?php echo esc_attr(wp_json_encode($api_handler->get_provider_models($key))); ?>'>
+                                            data-models="<?php echo esc_attr(json_encode($api_handler->get_provider_models($key))); ?>">
                                         <?php echo esc_html($provider['name']); ?>
                                         <?php if ($api_handler->is_free_tier($key)): ?>
                                             <span class="free-badge">FREE</span>
@@ -489,8 +489,17 @@ jQuery(document).ready(function($) {
     
     function loadProviderModels(provider) {
         const $option = $('#session-provider option[value="' + provider + '"]');
-        // jQuery .data() automatically parses JSON, so no need for JSON.parse
-        const models = $option.data('models') || {};
+        let models = {};
+        
+        try {
+            const modelsData = $option.attr('data-models');
+            if (modelsData) {
+                models = JSON.parse(modelsData);
+            }
+        } catch (e) {
+            console.error('Error parsing models data:', e);
+            models = {};
+        }
         
         const $modelSelect = $('#session-model');
         $modelSelect.empty();
@@ -670,19 +679,11 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        var promptTemplate = '';
-        if ($('#template-prompt').hasClass('active')) {
-            promptTemplate = $('#prompt-template-select').find(':selected').data('template');
-            if (!promptTemplate) {
-                alert('<?php _e('Please select a prompt template.', 'kotacom-ai'); ?>');
-                return;
-            }
-        } else {
-            promptTemplate = $('#custom-prompt-input').val();
-            if (!promptTemplate) {
-                alert('<?php _e('Please enter a custom prompt.', 'kotacom-ai'); ?>');
-                return;
-            }
+        // Check if template is selected
+        var templateId = $('#template-select').val();
+        if (!templateId) {
+            alert('<?php _e('Please select a template.', 'kotacom-ai'); ?>');
+            return;
         }
         
         // Get length value
@@ -708,11 +709,10 @@ jQuery(document).ready(function($) {
             url: kotacomAI.ajaxurl,
             type: 'POST',
             data: {
-                action: 'kotacom_generate_content',
+                action: 'kotacom_generate_content_enhanced',
                 nonce: kotacomAI.nonce,
                 keywords: keywords,
-                prompt_template: promptTemplate,
-                template_id: $('#template-select').val(), // Tambahkan baris ini
+                template_id: $('#template-select').val(),
                 session_provider: $('#session-provider').val(),
                 session_model: $('#session-model').val(),
                 tone: $('#tone').val(),
@@ -727,8 +727,9 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 displayResults(response);
             },
-            error: function() {
-                alert(kotacomAI.strings.error);
+            error: function(xhr, status, error) {
+                console.error('AJAX Error:', error);
+                alert('Error: ' + error);
             },
             complete: function() {
                 $btn.prop('disabled', false);
@@ -753,26 +754,52 @@ jQuery(document).ready(function($) {
         if (response.success) {
             html += '<div class="notice notice-success"><p>' + response.data.message + '</p></div>';
             
-            if (response.data.results) {
-                html += '<div class="results-table">';
-                html += '<table class="wp-list-table widefat fixed striped">';
-                html += '<thead><tr><th>Keyword</th><th>Status</th><th>Message</th><th>Action</th></tr></thead>';
-                html += '<tbody>';
+            // Handle single generation
+            if (response.data.type === 'single') {
+                html += '<div class="single-result">';
+                html += '<h3>Generated Post</h3>';
+                html += '<p><strong>Keyword:</strong> ' + response.data.keyword + '</p>';
+                html += '<div class="result-actions">';
+                html += '<a href="' + response.data.edit_link + '" class="button button-primary" target="_blank">Edit Post</a> ';
+                html += '<a href="' + response.data.view_link + '" class="button" target="_blank">View Post</a>';
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            // Handle bulk generation
+            if (response.data.type === 'bulk') {
+                html += '<div class="bulk-result">';
+                html += '<h3>Bulk Generation Status</h3>';
+                html += '<p><strong>Batch ID:</strong> ' + response.data.batch_id + '</p>';
+                html += '<p><strong>Success:</strong> ' + response.data.success_count + ' items</p>';
+                if (response.data.error_count > 0) {
+                    html += '<p><strong>Errors:</strong> ' + response.data.error_count + ' items</p>';
+                }
                 
-                $.each(response.data.results, function(index, result) {
-                    html += '<tr>';
-                    html += '<td>' + result.keyword + '</td>';
-                    html += '<td><span class="status-' + result.status + '">' + result.status + '</span></td>';
-                    html += '<td>' + result.message + '</td>';
-                    html += '<td>';
-                    if (result.post_id) {
-                        html += '<a href="' + '<?php echo admin_url('post.php?action=edit&post='); ?>' + result.post_id + '" target="_blank">Edit Post</a>';
-                    }
-                    html += '</td>';
-                    html += '</tr>';
-                });
+                if (response.data.results && response.data.results.length > 0) {
+                    html += '<div class="results-table">';
+                    html += '<table class="wp-list-table widefat fixed striped">';
+                    html += '<thead><tr><th>Keyword</th><th>Status</th><th>Message</th><th>Queue ID</th></tr></thead>';
+                    html += '<tbody>';
+                    
+                    $.each(response.data.results, function(index, result) {
+                        html += '<tr>';
+                        html += '<td>' + result.keyword + '</td>';
+                        html += '<td><span class="status-' + result.status + '">' + result.status + '</span></td>';
+                        html += '<td>' + result.message + '</td>';
+                        html += '<td>' + (result.queue_id || '-') + '</td>';
+                        html += '</tr>';
+                    });
+                    
+                    html += '</tbody></table>';
+                    html += '</div>';
+                }
                 
-                html += '</tbody></table>';
+                html += '<div class="queue-monitoring">';
+                html += '<h4>Monitoring</h4>';
+                html += '<p>Your bulk generation is being processed in the background. You can monitor progress in the <a href="<?php echo admin_url('admin.php?page=kotacom-ai-queue'); ?>" target="_blank">Queue Status</a> page.</p>';
+                html += '<button type="button" class="button" onclick="checkBatchStatus(\'' + response.data.batch_id + '\')">Check Status</button>';
+                html += '</div>';
                 html += '</div>';
             }
         } else {
@@ -781,6 +808,38 @@ jQuery(document).ready(function($) {
         
         $('#generation-results .results-content').html(html);
         $('#generation-results').show();
+        
+        // Scroll to results
+        $('html, body').animate({
+            scrollTop: $("#generation-results").offset().top
+        }, 1000);
+    }
+    
+    // Function to check batch status
+    function checkBatchStatus(batchId) {
+        $.ajax({
+            url: kotacomAI.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'kotacom_get_processing_status',
+                nonce: kotacomAI.nonce,
+                batch_id: batchId
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('Batch Status:\n' + 
+                          'Total: ' + response.data.total + '\n' +
+                          'Completed: ' + response.data.completed + '\n' +
+                          'Failed: ' + response.data.failed + '\n' +
+                          'Pending: ' + response.data.pending);
+                } else {
+                    alert('Error checking status: ' + response.data.message);
+                }
+            },
+            error: function() {
+                alert('Error checking batch status');
+            }
+        });
     }
 });
 </script>
