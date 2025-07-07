@@ -277,8 +277,21 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
             
             <!-- WordPress Post Settings -->
             <div class="postbox">
-                <h2 class="hndle"><?php _e('WordPress Post Settings', 'kotacom-ai'); ?></h2>
+                <h2 class="hndle">
+                    <?php _e('WordPress Post Settings', 'kotacom-ai'); ?>
+                    <span class="tooltip">⚙️
+                        <span class="tooltiptext"><?php _e('Configure how the generated content will be saved in WordPress. Choose post type, status, categories, and tags.', 'kotacom-ai'); ?></span>
+                    </span>
+                </h2>
                 <div class="inside">
+                    <div class="info-card" style="margin-bottom: 15px;">
+                        <p><strong><?php _e('📝 WordPress Integration:', 'kotacom-ai'); ?></strong></p>
+                        <ul style="margin-left: 20px;">
+                            <li><strong><?php _e('Draft Status:', 'kotacom-ai'); ?></strong> <?php _e('Recommended for review before publishing', 'kotacom-ai'); ?></li>
+                            <li><strong><?php _e('Categories:', 'kotacom-ai'); ?></strong> <?php _e('Help organize content and improve SEO', 'kotacom-ai'); ?></li>
+                            <li><strong><?php _e('Tags:', 'kotacom-ai'); ?></strong> <?php _e('Use relevant keywords as tags for better discoverability', 'kotacom-ai'); ?></li>
+                        </ul>
+                    </div>
                     <div class="post-settings-grid">
                         <div class="setting-field">
                             <label for="post-status"><?php _e('Post Status:', 'kotacom-ai'); ?></label>
