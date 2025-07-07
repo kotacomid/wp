@@ -160,6 +160,7 @@ class KotacomAI {
         add_action('wp_ajax_kotacom_update_keyword', array($this, 'ajax_update_keyword'));
         add_action('wp_ajax_kotacom_delete_keyword', array($this, 'ajax_delete_keyword'));
         add_action('wp_ajax_kotacom_get_keywords', array($this, 'ajax_get_keywords'));
+        add_action('wp_ajax_kotacom_bulk_edit_tags', array($this, 'ajax_bulk_edit_tags'));
         
         // Prompts management
         add_action('wp_ajax_kotacom_add_prompt', array($this, 'ajax_add_prompt'));
@@ -513,6 +514,82 @@ class KotacomAI {
             'total' => $total,
             'pages' => ceil($total / $per_page)
         ));
+    }
+    
+    public function ajax_bulk_edit_tags() {
+        check_ajax_referer('kotacom_ai_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+        }
+        
+        $keyword_ids = isset($_POST['keyword_ids']) && is_array($_POST['keyword_ids']) ? array_map('intval', $_POST['keyword_ids']) : array();
+        $tag_action = sanitize_text_field($_POST['tag_action'] ?? '');
+        $tags = sanitize_text_field($_POST['tags'] ?? '');
+        
+        if (empty($keyword_ids)) {
+            wp_send_json_error(array('message' => __('No keywords selected', 'kotacom-ai')));
+        }
+        
+        if (empty($tag_action)) {
+            wp_send_json_error(array('message' => __('Tag action is required', 'kotacom-ai')));
+        }
+        
+        $success_count = 0;
+        $error_count = 0;
+        
+        foreach ($keyword_ids as $keyword_id) {
+            $keyword_data = $this->database->get_keyword_by_id($keyword_id);
+            
+            if (!$keyword_data) {
+                $error_count++;
+                continue;
+            }
+            
+            $current_tags = $keyword_data['tags'] ? explode(',', $keyword_data['tags']) : array();
+            $current_tags = array_map('trim', $current_tags);
+            $new_tags = $tags ? array_map('trim', explode(',', $tags)) : array();
+            
+            $updated_tags = array();
+            
+            switch ($tag_action) {
+                case 'replace':
+                    $updated_tags = $new_tags;
+                    break;
+                    
+                case 'add':
+                    $updated_tags = array_unique(array_merge($current_tags, $new_tags));
+                    break;
+                    
+                case 'remove':
+                    $updated_tags = array_diff($current_tags, $new_tags);
+                    break;
+                    
+                default:
+                    $error_count++;
+                    continue 2;
+            }
+            
+            $updated_tags_string = implode(', ', array_filter($updated_tags));
+            
+            $result = $this->database->update_keyword($keyword_id, $keyword_data['keyword'], $updated_tags_string);
+            
+            if ($result) {
+                $success_count++;
+            } else {
+                $error_count++;
+            }
+        }
+        
+        if ($success_count > 0) {
+            $message = sprintf(__('%d keywords updated successfully', 'kotacom-ai'), $success_count);
+            if ($error_count > 0) {
+                $message .= sprintf(__(', %d failed', 'kotacom-ai'), $error_count);
+            }
+            wp_send_json_success(array('message' => $message));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to update keywords', 'kotacom-ai')));
+        }
     }
     
     // AJAX Handlers for Prompts (unchanged)
@@ -1155,7 +1232,7 @@ class KotacomAI {
     }
 
     /**
-     * Bulk Refresh / Content Update
+     * Bulk Refresh / Content Update - Now uses Queue System
      * POST: post_ids[] (array of IDs), refresh_prompt (string)
      * Prompt can contain placeholders {current_content} and {title}
      */
@@ -1175,20 +1252,87 @@ class KotacomAI {
             wp_send_json_error(array('message' => __('Post IDs and refresh prompt are required', 'kotacom-ai')));
         }
 
-        $api_handler = new KotacomAI_API_Handler();
-        $results     = array();
+        $results = array();
+        $success_count = 0;
+        $error_count = 0;
+        
+        // Determine if this is single or bulk refresh
+        $is_bulk = count($post_ids) > 1;
+        
+        if ($is_bulk) {
+            // Bulk refresh - use queue system
+            $batch_id = 'refresh_batch_' . time() . '_' . wp_generate_password(8, false);
+            
+            foreach ($post_ids as $post_id) {
+                $post = get_post($post_id);
+                if (!$post || $post->post_type === 'revision') {
+                    $results[] = array('post_id' => $post_id, 'status' => 'error', 'message' => 'Invalid post');
+                    $error_count++;
+                    continue;
+                }
 
-        foreach ($post_ids as $post_id) {
+                $prompt_base = $refresh_prompt;
+                if ($template_id) {
+                    $template_post = get_post($template_id);
+                    if ($template_post) { 
+                        $prompt_base = $template_post->post_content; 
+                    }
+                }
+
+                // Add to queue for background processing
+                $queue_item_id = $this->queue_manager->add_single_item_to_queue('refresh_content', array(
+                    'post_id' => $post_id,
+                    'refresh_prompt' => $prompt_base,
+                    'update_date' => $update_date,
+                    'batch_id' => $batch_id
+                ), 5); // Priority 5 for refresh tasks
+                
+                if ($queue_item_id) {
+                    $results[] = array(
+                        'post_id' => $post_id,
+                        'status' => 'queued',
+                        'message' => __('Added to refresh queue', 'kotacom-ai'),
+                        'queue_id' => $queue_item_id
+                    );
+                    $success_count++;
+                } else {
+                    $results[] = array(
+                        'post_id' => $post_id,
+                        'status' => 'error',
+                        'message' => __('Failed to add to queue', 'kotacom-ai')
+                    );
+                    $error_count++;
+                }
+            }
+            
+            if ($success_count > 0) {
+                wp_send_json_success(array(
+                    'message' => sprintf(__('Bulk refresh started! %d posts queued for processing.', 'kotacom-ai'), $success_count),
+                    'batch_id' => $batch_id,
+                    'type' => 'bulk',
+                    'results' => $results,
+                    'success_count' => $success_count,
+                    'error_count' => $error_count
+                ));
+            } else {
+                wp_send_json_error(array('message' => __('Failed to start bulk refresh', 'kotacom-ai')));
+            }
+            
+        } else {
+            // Single refresh - process immediately
+            $post_id = $post_ids[0];
             $post = get_post($post_id);
+            
             if (!$post || $post->post_type === 'revision') {
-                $results[] = array('post_id' => $post_id, 'status' => 'error', 'message' => 'Invalid post');
-                continue;
+                wp_send_json_error(array('message' => __('Invalid post', 'kotacom-ai')));
             }
 
             $prompt_base = $refresh_prompt;
-            if($template_id){
+            if ($template_id) {
                 $template_post = get_post($template_id);
-                if($template_post){ $prompt_base = $template_post->post_content; }
+                if ($template_post) { 
+                    $prompt_base = $template_post->post_content; 
+                }
             }
 
             $prompt = str_replace(
@@ -1198,12 +1342,12 @@ class KotacomAI {
             );
 
             // Generate refreshed content (simple params)
+            $api_handler = new KotacomAI_API_Handler();
             $gen = $api_handler->generate_content($prompt, array('tone' => 'informative', 'length' => 'unlimited'));
 
             if (!$gen['success']) {
                 KotacomAI_Logger::add('refresh', 0, $post_id, $gen['error']);
-                $results[] = array('post_id' => $post_id, 'status' => 'error', 'message' => $gen['error']);
-                continue;
+                wp_send_json_error(array('message' => $gen['error']));
             }
 
             // Save new revision/draft
@@ -1215,16 +1359,25 @@ class KotacomAI {
             // Save as a revision so editor can compare (or draft override)
             wp_save_post_revision($post_id);
 
-            if($update_date){
+            if ($update_date) {
                 $new_post['post_date'] = current_time('mysql');
             }
-            wp_update_post($new_post);
-
-            KotacomAI_Logger::add('refresh', 1, $post_id, 'OK');
-            $results[] = array('post_id' => $post_id, 'status' => 'success');
+            
+            $updated = wp_update_post($new_post);
+            
+            if ($updated && !is_wp_error($updated)) {
+                KotacomAI_Logger::add('refresh', 1, $post_id, 'OK');
+                wp_send_json_success(array(
+                    'message' => __('Content refreshed successfully!', 'kotacom-ai'),
+                    'type' => 'single',
+                    'post_id' => $post_id,
+                    'edit_link' => get_edit_post_link($post_id),
+                    'view_link' => get_permalink($post_id)
+                ));
+            } else {
+                wp_send_json_error(array('message' => __('Failed to update post', 'kotacom-ai')));
+            }
         }
-
-        wp_send_json_success(array('results' => $results));
     }
 }
 

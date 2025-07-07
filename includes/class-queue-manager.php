@@ -340,22 +340,21 @@ class KotacomAI_Queue_Manager {
             throw new Exception("Post not found: {$post_id}");
         }
         
-        $generator = new KotacomAI_Content_Generator();
-        
         // Replace placeholders in prompt
         $prompt = str_replace(
-            array('{current_content}', '{title}'),
-            array($post->post_content, $post->post_title),
+            array('{current_content}', '{title}', '{published_date}'),
+            array(wp_strip_all_tags($post->post_content), $post->post_title, get_the_date('', $post)),
             $refresh_prompt
         );
         
-        $result = $generator->generate_content(
-            $post->post_title,
-            $prompt,
-            array('tone' => 'informative', 'length' => '500')
-        );
+        // Use API handler directly for refresh content
+        $api_handler = new KotacomAI_API_Handler();
+        $result = $api_handler->generate_content($prompt, array('tone' => 'informative', 'length' => 'unlimited'));
         
-        if ($result && !is_wp_error($result)) {
+        if ($result['success']) {
+            // Save new revision so editor can compare
+            wp_save_post_revision($post_id);
+            
             $update_data = array(
                 'ID' => $post_id,
                 'post_content' => $result['content']
@@ -366,7 +365,15 @@ class KotacomAI_Queue_Manager {
             }
             
             $updated = wp_update_post($update_data);
-            return $updated && !is_wp_error($updated);
+            
+            if ($updated && !is_wp_error($updated)) {
+                KotacomAI_Logger::log('refresh', 1, $post_id, 'Queue refresh successful');
+                return true;
+            } else {
+                throw new Exception('Failed to update post content');
+            }
+        } else {
+            throw new Exception($result['error'] ?? 'Failed to generate refresh content');
         }
         
         return false;

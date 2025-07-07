@@ -477,6 +477,67 @@ jQuery(document).ready(function($) {
         }
     }
     
+    function deleteSelectedKeywords() {
+        var selected = $('.keyword-checkbox:checked');
+        var ids = [];
+        
+        selected.each(function() {
+            ids.push($(this).val());
+        });
+        
+        if (ids.length === 0) {
+            alert('<?php _e('Please select keywords to delete.', 'kotacom-ai'); ?>');
+            return;
+        }
+        
+        var $btn = $('#apply-bulk-action');
+        $btn.prop('disabled', true).text('<?php _e('Deleting...', 'kotacom-ai'); ?>');
+        
+        // Delete keywords one by one
+        var deletePromises = [];
+        
+        ids.forEach(function(id) {
+            var promise = $.ajax({
+                url: kotacomAI.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'kotacom_delete_keyword',
+                    nonce: kotacomAI.nonce,
+                    id: id
+                }
+            });
+            deletePromises.push(promise);
+        });
+        
+        // Wait for all deletions to complete
+        Promise.all(deletePromises).then(function(responses) {
+            var successCount = 0;
+            var errorCount = 0;
+            
+            responses.forEach(function(response) {
+                if (response.success) {
+                    successCount++;
+                } else {
+                    errorCount++;
+                }
+            });
+            
+            if (successCount > 0) {
+                showNotice(sprintf('<?php _e('%d keywords deleted successfully', 'kotacom-ai'); ?>', successCount), 'success');
+                loadKeywords();
+            }
+            
+            if (errorCount > 0) {
+                showNotice(sprintf('<?php _e('%d keywords failed to delete', 'kotacom-ai'); ?>', errorCount), 'error');
+            }
+        }).catch(function() {
+            showNotice('<?php _e('Failed to delete keywords', 'kotacom-ai'); ?>', 'error');
+        }).finally(function() {
+            $btn.prop('disabled', false).text('<?php _e('Apply', 'kotacom-ai'); ?>');
+            $('#bulk-action').val('');
+        });
+    }
+    
     function showNotice(message, type) {
         var html = '<div class="notice notice-' + type + ' is-dismissible"><p>' + message + '</p></div>';
         $('.wrap h1').after(html);
@@ -484,6 +545,13 @@ jQuery(document).ready(function($) {
         setTimeout(function() {
             $('.notice').fadeOut();
         }, 5000);
+    }
+    
+    // Helper function for string formatting (simple sprintf)
+    function sprintf(format, ...args) {
+        return format.replace(/%d/g, function() {
+            return args.shift();
+        });
     }
     
     // Modal functions
@@ -525,6 +593,54 @@ jQuery(document).ready(function($) {
                     closeModal();
                     loadKeywords();
                     showNotice(response.data.message, 'success');
+                } else {
+                    showNotice(response.data.message, 'error');
+                }
+            },
+            complete: function() {
+                $btn.prop('disabled', false);
+                $spinner.removeClass('is-active');
+            }
+        });
+    });
+    
+    // Bulk edit tags form
+    $('#bulk-edit-tags-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        var $form = $(this);
+        var $btn = $form.find('button[type="submit"]');
+        var $spinner = $form.find('.spinner');
+        
+        if (selectedKeywords.length === 0) {
+            alert('<?php _e('No keywords selected for bulk edit.', 'kotacom-ai'); ?>');
+            return;
+        }
+        
+        $btn.prop('disabled', true);
+        $spinner.addClass('is-active');
+        
+        var tagAction = $('#tag-action').val();
+        var tags = $('#bulk-edit-tags-input').val();
+        
+        $.ajax({
+            url: kotacomAI.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'kotacom_bulk_edit_tags',
+                nonce: kotacomAI.nonce,
+                keyword_ids: selectedKeywords,
+                tag_action: tagAction,
+                tags: tags
+            },
+            success: function(response) {
+                if (response.success) {
+                    closeModal();
+                    loadKeywords();
+                    showNotice(response.data.message, 'success');
+                    selectedKeywords = [];
+                    $('.keyword-checkbox').prop('checked', false);
+                    $('#select-all-keywords').prop('checked', false);
                 } else {
                     showNotice(response.data.message, 'error');
                 }

@@ -579,10 +579,27 @@ jQuery(document).ready(function($) {
     
     function loadProviderModels(provider) {
         const $option = $('#session-provider option[value="' + provider + '"]');
-        const models = JSON.parse($option.data('models') || '{}');
+        let models = $option.data('models');
+        
+        // Handle both string and object data
+        if (typeof models === 'string') {
+            try {
+                models = JSON.parse(models);
+            } catch (e) {
+                console.error('Failed to parse provider models:', e);
+                models = {};
+            }
+        } else if (typeof models !== 'object' || models === null) {
+            models = {};
+        }
         
         const $modelSelect = $('#session-model');
         $modelSelect.empty();
+        
+        if (Object.keys(models).length === 0) {
+            $modelSelect.append('<option value="">' + 'No models available' + '</option>');
+            return;
+        }
         
         $.each(models, function(key, name) {
             $modelSelect.append('<option value="' + key + '">' + name + '</option>');
