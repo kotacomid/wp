@@ -108,6 +108,16 @@ class KotacomAI_Admin {
             array($this, 'display_content_refresh_page')
         );
         
+        // Logs
+        add_submenu_page(
+            'kotacom-ai',
+            __('Logs', 'kotacom-ai'),
+            __('Logs', 'kotacom-ai'),
+            'manage_options',
+            'kotacom-ai-logs',
+            array($this, 'display_logs_page')
+        );
+        
         add_submenu_page(
             'kotacom-ai',
             __('Generator Post Template', 'kotacom-ai'),
@@ -581,6 +591,43 @@ class KotacomAI_Admin {
             });
         });
         </script>
+        <?php
+    }
+
+    /**
+     * Simple Logs page
+     */
+    public function display_logs_page() {
+        if (!current_user_can('manage_options')) return;
+        $filter = isset($_GET['result']) ? sanitize_text_field($_GET['result']) : '';
+        $logs = KotacomAI_Logger::get_logs(100, $filter);
+        ?>
+        <div class="wrap">
+            <h1><?php _e('Kotacom AI Logs', 'kotacom-ai'); ?></h1>
+            <p>
+                <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs'); ?>" class="button <?php echo $filter==''?'button-primary':''; ?>">All</a>
+                <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs&result=success'); ?>" class="button <?php echo $filter=='success'?'button-primary':''; ?>">Success</a>
+                <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs&result=fail'); ?>" class="button <?php echo $filter=='fail'?'button-primary':''; ?>">Failed</a>
+            </p>
+            <table class="widefat fixed striped">
+                <thead><tr><th>Date</th><th>Action</th><th>Post</th><th>Status</th><th>Message</th></tr></thead>
+                <tbody>
+                <?php foreach($logs as $log): ?>
+                    <tr>
+                        <td><?php echo esc_html($log->ts); ?></td>
+                        <td><?php echo esc_html($log->action); ?></td>
+                        <td>
+                            <?php if($log->post_id): ?>
+                                <a href="<?php echo get_edit_post_link($log->post_id); ?>" target="_blank">#<?php echo $log->post_id; ?></a>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo $log->success ? '✅' : '❌'; ?></td>
+                        <td><?php echo esc_html($log->message); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
         <?php
     }
 }

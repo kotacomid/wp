@@ -119,6 +119,7 @@ class KotacomAI {
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-template-manager.php'; 
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-template-editor.php';
         require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-image-generator.php';
+        require_once KOTACOM_AI_PLUGIN_DIR . 'includes/class-logger.php';
         
         if (is_admin()) {
             require_once KOTACOM_AI_PLUGIN_DIR . 'admin/class-admin.php';
@@ -710,6 +711,7 @@ class KotacomAI {
         $result   = $img_gen->generate_image($prompt, $size, true, $provider);
 
         if (!$result['success']) {
+            KotacomAI_Logger::add('image', 0, $post_id, $result['error']);
             wp_send_json_error(array('message' => $result['error']));
         }
 
@@ -729,6 +731,7 @@ class KotacomAI {
             }
         }
 
+        KotacomAI_Logger::add('image', 1, $post_id, 'OK');
         wp_send_json_success(array(
             'url'        => $result['url'],
             'alt'        => $result['alt'],
@@ -1019,6 +1022,7 @@ class KotacomAI {
             $gen = $api_handler->generate_content($prompt, array('tone' => 'informative', 'length' => 'unlimited'));
 
             if (!$gen['success']) {
+                KotacomAI_Logger::add('refresh', 0, $post_id, $gen['error']);
                 $results[] = array('post_id' => $post_id, 'status' => 'error', 'message' => $gen['error']);
                 continue;
             }
@@ -1037,6 +1041,7 @@ class KotacomAI {
             }
             wp_update_post($new_post);
 
+            KotacomAI_Logger::add('refresh', 1, $post_id, 'OK');
             $results[] = array('post_id' => $post_id, 'status' => 'success');
         }
 

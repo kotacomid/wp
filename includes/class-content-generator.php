@@ -114,6 +114,7 @@ class KotacomAI_Content_Generator {
         $api_result = $this->generate_with_fallback($prompt, $parameters);
         
         if (!$api_result['success']) {
+            KotacomAI_Logger::add('generate', 0, null, $api_result['error']);
             return array(
                 'success' => false,
                 'message' => $api_result['error']
@@ -127,12 +128,14 @@ class KotacomAI_Content_Generator {
         $post_id = $this->create_wordpress_post($keyword, $content, $post_settings);
         
         if ($post_id) {
+            KotacomAI_Logger::add('generate', 1, $post_id, 'OK');
             return array(
                 'success' => true,
                 'message' => sprintf(__('Content generated and post created (ID: %d)', 'kotacom-ai'), $post_id),
                 'post_id' => $post_id
             );
         } else {
+            KotacomAI_Logger::add('generate', 0, null, 'Failed to create post');
             return array(
                 'success' => false,
                 'message' => __('Content generated but failed to create post', 'kotacom-ai')

@@ -142,6 +142,7 @@ class KotacomAI_Background_Processor {
                 $post_id = $this->create_wordpress_post($item['keyword'], $result['content'], $post_settings);
                 
                 if ($post_id) {
+                    KotacomAI_Logger::add('generate', 1, $post_id, 'Queued');
                     $this->database->update_queue_item_status($queue_id, 'completed');
                     $this->database->update_queue_item_post_id($queue_id, $post_id);
                     
@@ -151,9 +152,11 @@ class KotacomAI_Background_Processor {
                     // Fire action hook
                     do_action('kotacom_ai_item_processed', $item, $post_id);
                 } else {
+                    KotacomAI_Logger::add('generate', 0, null, 'Failed to create post');
                     $this->database->update_queue_item_status($queue_id, 'failed', __('Failed to create WordPress post', 'kotacom-ai'));
                 }
             } else {
+                KotacomAI_Logger::add('generate', 0, null, $result['error']);
                 $this->database->update_queue_item_status($queue_id, 'failed', $result['error']);
             }
             

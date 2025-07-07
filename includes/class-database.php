@@ -104,6 +104,21 @@ class KotacomAI_Database {
             KEY tags_index (tags(100))
         ) $charset_collate;";
         
+        // Logs table (lightweight)
+        $logs_table = $this->wpdb->prefix . 'kotacom_ai_logs';
+        $logs_sql = "CREATE TABLE {$logs_table} (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            ts DATETIME NOT NULL,
+            action VARCHAR(20) NOT NULL,
+            success TINYINT(1) NOT NULL DEFAULT 0,
+            message TEXT,
+            post_id BIGINT(20) UNSIGNED NULL,
+            PRIMARY KEY (id),
+            KEY ts_index (ts),
+            KEY action_index (action),
+            KEY success_index (success)
+        ) $charset_collate;";
+        
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         
         try {
@@ -112,6 +127,7 @@ class KotacomAI_Database {
             dbDelta($queue_sql);
             dbDelta($batches_sql);
             dbDelta($templates_sql);
+            dbDelta($logs_sql);
             
             // Insert default prompts
             $this->insert_default_prompts();
