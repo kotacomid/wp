@@ -1,4 +1,4 @@
-THIS SHOULD BE A LINTER ERROR<?php
+<?php
 /**
  * Content Generator admin page - Enhanced with Inline Provider Selection
  */
@@ -251,13 +251,25 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
                         </div>
                         
                         <div class="parameter-field">
-                            <label for="audience"><?php _e('Target Audience:', 'kotacom-ai'); ?></label>
-                            <input type="text" id="audience" name="audience" value="general" placeholder="<?php _e('e.g., beginners, professionals, general', 'kotacom-ai'); ?>">
+                            <label for="audience">
+                                <?php _e('Target Audience:', 'kotacom-ai'); ?>
+                                <span class="tooltip">👥
+                                    <span class="tooltiptext"><?php _e('Who will read this content? Be specific: "small business owners", "fitness beginners", "experienced developers", etc.', 'kotacom-ai'); ?></span>
+                                </span>
+                            </label>
+                            <input type="text" id="audience" name="audience" value="general" placeholder="<?php _e('e.g., beginners, professionals, small business owners', 'kotacom-ai'); ?>">
+                            <div class="field-help"><?php _e('💡 Be specific: "WordPress beginners" instead of just "beginners"', 'kotacom-ai'); ?></div>
                         </div>
                         
                         <div class="parameter-field">
-                            <label for="niche"><?php _e('Industry/Niche:', 'kotacom-ai'); ?></label>
-                            <input type="text" id="niche" name="niche" placeholder="<?php _e('e.g., technology, health, finance', 'kotacom-ai'); ?>">
+                            <label for="niche">
+                                <?php _e('Industry/Niche:', 'kotacom-ai'); ?>
+                                <span class="tooltip">🏢
+                                    <span class="tooltiptext"><?php _e('The industry or topic area. This helps AI understand the context and use appropriate terminology.', 'kotacom-ai'); ?></span>
+                                </span>
+                            </label>
+                            <input type="text" id="niche" name="niche" placeholder="<?php _e('e.g., technology, health, finance, e-commerce', 'kotacom-ai'); ?>">
+                            <div class="field-help"><?php _e('💡 Examples: "SaaS marketing", "personal finance", "web development"', 'kotacom-ai'); ?></div>
                         </div>
                     </div>
                 </div>
