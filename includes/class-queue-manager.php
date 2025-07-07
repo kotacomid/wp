@@ -19,13 +19,20 @@ class KotacomAI_Queue_Manager {
         $this->batch_size = get_option('kotacom_ai_queue_batch_size', 5);
         $this->max_attempts = 3;
         
-        $this->init();
+        $this->setup_hooks();
     }
     
     /**
      * Initialize queue manager
      */
-    private function init() {
+    public function init() {
+        $this->setup_hooks();
+    }
+    
+    /**
+     * Setup hooks and schedules
+     */
+    private function setup_hooks() {
         // Schedule queue processing
         add_action('kotacom_ai_process_queue', array($this, 'process_queue'));
         add_action('kotacom_ai_cleanup_queue', array($this, 'cleanup_queue'));
@@ -67,7 +74,63 @@ class KotacomAI_Queue_Manager {
     /**
      * Add item to queue
      */
-    public function add_to_queue($action, $data, $priority = 10, $delay = 0) {
+    public function add_to_queue($keywords_or_action, $prompt_template = null, $parameters = null, $post_settings = null, $priority = 10, $delay = 0) {
+        // New signature: add_to_queue($action, $data, $priority, $delay)
+        if ($prompt_template === null && is_string($keywords_or_action)) {
+            // This is the new queue manager signature
+            return $this->add_single_item_to_queue($keywords_or_action, $prompt_template, $parameters, $post_settings);
+        }
+        
+        // Old signature: add_to_queue($keywords, $prompt_template, $parameters, $post_settings) 
+        $keywords = $keywords_or_action;
+        $batch_id = uniqid('batch_', true);
+        
+        if (!is_array($keywords)) {
+            $keywords = array($keywords);
+        }
+        
+        $success_count = 0;
+        foreach ($keywords as $keyword) {
+            $queue_item_id = $this->add_single_item_to_queue('generate_content', array(
+                'keyword' => $keyword,
+                'prompt' => $prompt_template,
+                'params' => $parameters,
+                'create_post' => true,
+                'post_status' => $post_settings['post_status'] ?? 'draft',
+                'post_type' => $post_settings['post_type'] ?? 'post',
+                'categories' => $post_settings['categories'] ?? array(),
+                'tags' => $post_settings['tags'] ?? '',
+                'batch_id' => $batch_id
+            ), $priority, $delay);
+            
+            if ($queue_item_id) {
+                $success_count++;
+            }
+        }
+        
+        // Store batch info
+        $batches = get_option('kotacom_ai_batches', array());
+        $batches[$batch_id] = array(
+            'id' => $batch_id,
+            'created_at' => current_time('mysql'),
+            'total_items' => count($keywords),
+            'keywords' => $keywords,
+            'status' => 'processing'
+        );
+        update_option('kotacom_ai_batches', $batches);
+        
+        return array(
+            'success' => $success_count > 0,
+            'message' => sprintf(__('%d keywords added to processing queue', 'kotacom-ai'), $success_count),
+            'batch_id' => $batch_id,
+            'queued_items' => $success_count
+        );
+    }
+    
+    /**
+     * Add single item to queue (internal method)
+     */
+    private function add_single_item_to_queue($action, $data, $priority = 10, $delay = 0) {
         $queue = get_option($this->queue_option, array());
         
         $item = array(
@@ -492,5 +555,95 @@ class KotacomAI_Queue_Manager {
      */
     public function is_paused() {
         return get_option('kotacom_ai_queue_paused', false);
+    }
+
+    /**
+     * Start batch processing (compatibility method)
+     */
+    public function start_batch_processing($batch_id) {
+        // The queue automatically processes items, so this is mainly for logging
+        KotacomAI_Logger::log('batch_start', "Started batch processing: {$batch_id}", null, true);
+        
+        // Update batch status
+        $batches = get_option('kotacom_ai_batches', array());
+        if (isset($batches[$batch_id])) {
+            $batches[$batch_id]['status'] = 'processing';
+            $batches[$batch_id]['started_at'] = current_time('mysql');
+            update_option('kotacom_ai_batches', $batches);
+        }
+        
+        return true;
+    }
+
+    /**
+     * Get batch status (compatibility method)
+     */
+    public function get_batch_status($batch_id) {
+        $batches = get_option('kotacom_ai_batches', array());
+        
+        if (!isset($batches[$batch_id])) {
+            return array(
+                'success' => false,
+                'message' => __('Batch not found', 'kotacom-ai')
+            );
+        }
+        
+        $batch = $batches[$batch_id];
+        $queue = get_option($this->queue_option, array());
+        
+        // Count items in this batch
+        $batch_items = array_filter($queue, function($item) use ($batch_id) {
+            return isset($item['data']['batch_id']) && $item['data']['batch_id'] === $batch_id;
+        });
+        
+        $status_counts = array(
+            'pending' => 0,
+            'processing' => 0,
+            'completed' => 0,
+            'failed' => 0,
+            'retry' => 0
+        );
+        
+        foreach ($batch_items as $item) {
+            if (isset($status_counts[$item['status']])) {
+                $status_counts[$item['status']]++;
+            }
+        }
+        
+        $total_items = count($batch_items);
+        $completed_items = $status_counts['completed'];
+        $failed_items = $status_counts['failed'];
+        $processing_items = $status_counts['processing'] + $status_counts['retry'] + $status_counts['pending'];
+        
+        return array(
+            'success' => true,
+            'batch_id' => $batch_id,
+            'status' => $batch['status'],
+            'total_items' => $total_items,
+            'completed_items' => $completed_items,
+            'failed_items' => $failed_items,
+            'processing_items' => $processing_items,
+            'progress_percentage' => $total_items > 0 ? round(($completed_items / $total_items) * 100, 2) : 0,
+            'created_at' => $batch['created_at'],
+            'started_at' => $batch['started_at'] ?? null
+        );
+    }
+
+    /**
+     * Get queue statistics (compatibility method)
+     */
+    public function get_queue_stats() {
+        $status = $this->get_queue_status();
+        
+        return array(
+            'total_items' => $status['total'],
+            'pending_items' => $status['pending'],
+            'processing_items' => $status['processing'],
+            'completed_items' => $status['completed'],
+            'failed_items' => $status['failed'],
+            'retry_items' => $status['retry'],
+            'last_processed' => get_option('kotacom_ai_last_queue_process', null),
+            'is_paused' => $this->is_paused()
+        );
     }
 }

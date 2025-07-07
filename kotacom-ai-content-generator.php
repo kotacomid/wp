@@ -59,7 +59,7 @@ class KotacomAI {
     public $database;
     public $admin;
     public $api_handler;
-    public $background_processor;
+    public $queue_manager;
     public $content_generator;
     public $template_manager;
     public $template_editor; 
@@ -686,14 +686,33 @@ class KotacomAI {
             wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
         }
         
-        $batch_id = sanitize_text_field($_POST['batch_id'] ?? '');
+        $item_id = sanitize_text_field($_POST['item_id'] ?? '');
         
-        $result = $this->queue_manager->get_failed_items();
-        
-        if ($result > 0) {
-            wp_send_json_success(array('message' => sprintf(__('%d failed items queued for retry', 'kotacom-ai'), $result)));
+        if (!empty($item_id)) {
+            // Retry specific item
+            $result = $this->queue_manager->retry_failed_item($item_id);
+            
+            if ($result) {
+                wp_send_json_success(array('message' => __('Item queued for retry', 'kotacom-ai')));
+            } else {
+                wp_send_json_error(array('message' => __('Failed to retry item', 'kotacom-ai')));
+            }
         } else {
-            wp_send_json_error(array('message' => __('No failed items to retry', 'kotacom-ai')));
+            // Retry all failed items
+            $failed_items = $this->queue_manager->get_failed_items();
+            $retry_count = 0;
+            
+            foreach ($failed_items as $item) {
+                if ($this->queue_manager->retry_failed_item($item['id'])) {
+                    $retry_count++;
+                }
+            }
+            
+            if ($retry_count > 0) {
+                wp_send_json_success(array('message' => sprintf(__('%d failed items queued for retry', 'kotacom-ai'), $retry_count)));
+            } else {
+                wp_send_json_error(array('message' => __('No failed items to retry', 'kotacom-ai')));
+            }
         }
     }
     
@@ -1044,7 +1063,7 @@ class KotacomAI {
             
             // Start processing the batch
             if ($success_count > 0) {
-                $this->background_processor->start_batch_processing($batch_id);
+                $this->queue_manager->start_batch_processing($batch_id);
                 
                 wp_send_json_success(array(
                     'message' => sprintf(__('Bulk generation started! %d items queued for processing.', 'kotacom-ai'), $success_count),
