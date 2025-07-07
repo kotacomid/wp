@@ -295,6 +295,16 @@ class KotacomAI_Database {
         );
     }
     
+    public function get_keyword_by_id($id) {
+        return $this->wpdb->get_row(
+            $this->wpdb->prepare(
+                "SELECT * FROM {$this->keywords_table} WHERE id = %d",
+                $id
+            ),
+            ARRAY_A
+        );
+    }
+    
     // Prompts methods (unchanged)
     public function add_prompt($prompt_name, $prompt_template, $description = '') {
         return $this->wpdb->insert(
