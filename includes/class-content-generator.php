@@ -11,12 +11,12 @@ class KotacomAI_Content_Generator {
     
     private $database;
     private $api_handler;
-    private $background_processor;
+    private $queue_manager;
     
     public function __construct() {
         $this->database = new KotacomAI_Database();
         $this->api_handler = new KotacomAI_API_Handler();
-        $this->background_processor = new KotacomAI_Background_Processor();
+        $this->queue_manager = new KotacomAI_Queue_Manager();
     }
     
     /**
@@ -69,7 +69,7 @@ class KotacomAI_Content_Generator {
                 );
             } else {
                 // Multiple keywords - use background processor
-                $response = $this->background_processor->add_to_queue($keywords, $prompt_template, $parameters, $post_settings);
+                $response = $this->queue_manager->add_to_queue($keywords, $prompt_template, $parameters, $post_settings);
                 $response['provider_used'] = $provider_override['provider'] ?? get_option('kotacom_ai_api_provider');
             }
             
@@ -312,7 +312,7 @@ class KotacomAI_Content_Generator {
      * Get batch processing status
      */
     public function get_batch_status($batch_id) {
-        return $this->background_processor->get_batch_status($batch_id);
+        return $this->queue_manager->get_batch_status($batch_id);
     }
     
     /**
@@ -386,7 +386,7 @@ class KotacomAI_Content_Generator {
         );
         
         // Queue statistics
-        $stats['queue'] = $this->background_processor->get_queue_stats();
+        $stats['queue'] = $this->queue_manager->get_queue_stats();
         
         return $stats;
     }
