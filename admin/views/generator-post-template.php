@@ -493,20 +493,24 @@ jQuery(document).ready(function($) {
         
         try {
             const modelsData = $option.attr('data-models');
-            if (modelsData) {
+            if (modelsData && modelsData !== 'null' && modelsData !== '[]' && modelsData !== 'false') {
                 models = JSON.parse(modelsData);
             }
         } catch (e) {
-            console.error('Error parsing models data:', e);
+            console.error('Error parsing models data:', e, 'Raw data:', $option.attr('data-models'));
             models = {};
         }
         
         const $modelSelect = $('#session-model');
         $modelSelect.empty();
         
-        $.each(models, function(key, name) {
-            $modelSelect.append('<option value="' + key + '">' + name + '</option>');
-        });
+        if (Object.keys(models).length === 0) {
+            $modelSelect.append('<option value="">No models available</option>');
+        } else {
+            $.each(models, function(key, name) {
+                $modelSelect.append('<option value="' + escapeHtml(key) + '">' + escapeHtml(name) + '</option>');
+            });
+        }
         
         // Show model info for first model
         if (Object.keys(models).length > 0) {
@@ -839,6 +843,20 @@ jQuery(document).ready(function($) {
             error: function() {
                 alert('Error checking batch status');
             }
+        });
+    }
+    
+    // Utility function to escape HTML
+    function escapeHtml(text) {
+        var map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return String(text).replace(/[&<>"']/g, function(m) {
+            return map[m];
         });
     }
 });
