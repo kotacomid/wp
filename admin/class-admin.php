@@ -248,6 +248,46 @@ class KotacomAI_Admin {
     }
     
     /**
+     * Display inline help box
+     */
+    private function display_help_box($title, $content, $type = 'info') {
+        $class = 'help-box help-' . $type;
+        echo '<div class="' . $class . '">';
+        echo '<h4><span class="dashicons dashicons-info"></span> ' . esc_html($title) . '</h4>';
+        echo '<div class="help-content">' . $content . '</div>';
+        echo '</div>';
+    }
+
+    /**
+     * Display quick tips box
+     */
+    private function display_tips_box($tips) {
+        echo '<div class="tips-box">';
+        echo '<h4><span class="dashicons dashicons-lightbulb"></span> ' . __('Quick Tips', 'kotacom-ai') . '</h4>';
+        echo '<ul>';
+        foreach ($tips as $tip) {
+            echo '<li>' . $tip . '</li>';
+        }
+        echo '</ul>';
+        echo '</div>';
+    }
+
+    /**
+     * Display shortcode examples box
+     */
+    private function display_shortcode_examples($shortcodes) {
+        echo '<div class="shortcode-examples">';
+        echo '<h4><span class="dashicons dashicons-editor-code"></span> ' . __('Available Shortcodes', 'kotacom-ai') . '</h4>';
+        foreach ($shortcodes as $shortcode => $example) {
+            echo '<div class="shortcode-item">';
+            echo '<strong>' . esc_html($shortcode) . '</strong>';
+            echo '<code>' . esc_html($example) . '</code>';
+            echo '</div>';
+        }
+        echo '</div>';
+    }
+    
+    /**
      * Display content generator page
      */
     public function display_generator_page() {
@@ -256,7 +296,40 @@ class KotacomAI_Admin {
         $categories = get_categories(array('hide_empty' => false));
         $post_types = get_post_types(array('public' => true), 'objects');
         
+        // Add help information
+        $this->add_generator_help_info();
+        
         include KOTACOM_AI_PLUGIN_DIR . 'admin/views/generator.php';
+    }
+
+    /**
+     * Add help information for generator page
+     */
+    private function add_generator_help_info() {
+        add_action('admin_notices', function() {
+            $this->display_help_box(
+                __('Content Generator', 'kotacom-ai'),
+                '<p>' . __('Generate high-quality content using AI. Fill in the keyword and customize settings as needed.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('Pro Tip:', 'kotacom-ai') . '</strong> ' . __('Use specific keywords for better results. Example: "WordPress SEO tips" instead of just "SEO"', 'kotacom-ai') . '</p>'
+            );
+            
+            $tips = array(
+                __('Start with specific, long-tail keywords for better content', 'kotacom-ai'),
+                __('Choose the right tone based on your audience', 'kotacom-ai'),
+                __('Longer content typically ranks better in search engines', 'kotacom-ai'),
+                __('Review and edit AI-generated content before publishing', 'kotacom-ai')
+            );
+            $this->display_tips_box($tips);
+            
+            $shortcodes = array(
+                '[ai_content]' => '[ai_content keyword="your keyword" tone="professional" length="long"]',
+                '[ai_image]' => '[ai_image prompt="beautiful landscape" size="1200x800" provider="unsplash"]',
+                '[ai_title]' => '[ai_title keyword="your keyword" style="catchy"]',
+                '[ai_excerpt]' => '[ai_excerpt content="your content here" length="short"]',
+                '[ai_meta]' => '[ai_meta keyword="your keyword" type="description"]'
+            );
+            $this->display_shortcode_examples($shortcodes);
+        });
     }
     
     /**
@@ -265,23 +338,93 @@ class KotacomAI_Admin {
     public function display_keywords_page() {
         $tags = $this->database->get_all_tags();
         
+        // Add help information
+        $this->add_keywords_help_info();
+        
         include KOTACOM_AI_PLUGIN_DIR . 'admin/views/keywords.php';
+    }
+
+    /**
+     * Add help information for keywords page
+     */
+    private function add_keywords_help_info() {
+        add_action('admin_notices', function() {
+            $this->display_help_box(
+                __('Keywords Management', 'kotacom-ai'),
+                '<p>' . __('Manage your keyword lists for bulk content generation. Organize keywords by tags for better workflow.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('How it works:', 'kotacom-ai') . '</strong> ' . __('Add keywords here, then use them in bulk generation or templates.', 'kotacom-ai') . '</p>'
+            );
+            
+            $tips = array(
+                __('Group related keywords using tags (e.g., "Tech", "Health", "Finance")', 'kotacom-ai'),
+                __('Use both short and long-tail keywords for variety', 'kotacom-ai'),
+                __('Research keywords using tools like Google Keyword Planner', 'kotacom-ai'),
+                __('Update your keyword list regularly based on trends', 'kotacom-ai')
+            );
+            $this->display_tips_box($tips);
+        });
     }
     
     /**
      * Display prompts management page
      */
     public function display_prompts_page() {
+        // Add help information
+        $this->add_prompts_help_info();
+        
         include KOTACOM_AI_PLUGIN_DIR . 'admin/views/prompts.php';
+    }
+
+    /**
+     * Add help information for prompts page
+     */
+    private function add_prompts_help_info() {
+        add_action('admin_notices', function() {
+            $this->display_help_box(
+                __('Prompt Templates', 'kotacom-ai'),
+                '<p>' . __('Create reusable prompt templates for consistent AI content generation. Use variables like {keyword}, {tone}, {audience}.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('Variables available:', 'kotacom-ai') . '</strong> {keyword}, {tone}, {length}, {audience}, {language}, {style}</p>'
+            );
+            
+            $tips = array(
+                __('Be specific in your prompts for better AI responses', 'kotacom-ai'),
+                __('Use variables to make templates reusable', 'kotacom-ai'),
+                __('Test different prompt styles to find what works best', 'kotacom-ai'),
+                __('Include context and instructions in your prompts', 'kotacom-ai')
+            );
+            $this->display_tips_box($tips);
+        });
     }
 
     /**
      * NEW: Display template editor page
      */
     public function display_template_editor_page() {
-        // You might need to pass data to the template editor view, e.g., existing templates
-        // $templates = $this->database->get_templates(); // Assuming a method exists
+        // Add help information
+        $this->add_template_editor_help_info();
+        
         include KOTACOM_AI_PLUGIN_DIR . 'admin/views/template-editor.php';
+    }
+
+    /**
+     * Add help information for template editor page
+     */
+    private function add_template_editor_help_info() {
+        add_action('admin_notices', function() {
+            $this->display_help_box(
+                __('Template Editor', 'kotacom-ai'),
+                '<p>' . __('Create and customize content templates with drag-and-drop components. Templates help maintain consistent content structure.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('How to use:', 'kotacom-ai') . '</strong> ' . __('Drag components from the left panel to build your template structure.', 'kotacom-ai') . '</p>'
+            );
+            
+            $tips = array(
+                __('Start with a basic structure: Title → Introduction → Body → Conclusion', 'kotacom-ai'),
+                __('Use image components to automatically generate relevant images', 'kotacom-ai'),
+                __('Save templates for reuse across multiple content pieces', 'kotacom-ai'),
+                __('Test templates with different keywords to ensure flexibility', 'kotacom-ai')
+            );
+            $this->display_tips_box($tips);
+        });
     }
     
     /**
@@ -291,7 +434,31 @@ class KotacomAI_Admin {
         $queue_status = $this->database->get_queue_status();
         $failed_items = $this->database->get_failed_queue_items();
         
+        // Add help information
+        $this->add_queue_help_info();
+        
         include KOTACOM_AI_PLUGIN_DIR . 'admin/views/queue.php';
+    }
+
+    /**
+     * Add help information for queue page
+     */
+    private function add_queue_help_info() {
+        add_action('admin_notices', function() {
+            $this->display_help_box(
+                __('Queue Status', 'kotacom-ai'),
+                '<p>' . __('Monitor content generation progress and manage failed items. The queue processes items automatically in the background.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('Status meanings:', 'kotacom-ai') . '</strong> Pending (waiting), Processing (generating), Completed (done), Failed (error occurred)</p>'
+            );
+            
+            $tips = array(
+                __('Failed items usually indicate API key issues or rate limits', 'kotacom-ai'),
+                __('Check Settings page if many items are failing', 'kotacom-ai'),
+                __('Queue processes automatically every few minutes', 'kotacom-ai'),
+                __('Large batches may take longer to complete', 'kotacom-ai')
+            );
+            $this->display_tips_box($tips);
+        });
     }
     
     /**
@@ -301,7 +468,73 @@ class KotacomAI_Admin {
         $api_handler = new KotacomAI_API_Handler();
         $providers = $api_handler->get_providers();
         
+        // Add help information
+        $this->add_settings_help_info();
+        
         include KOTACOM_AI_PLUGIN_DIR . 'admin/views/settings.php';
+    }
+
+    /**
+     * Add help information for settings page
+     */
+    private function add_settings_help_info() {
+        add_action('admin_notices', function() {
+            $this->display_help_box(
+                __('Plugin Settings', 'kotacom-ai'),
+                '<p>' . __('Configure API keys and default settings. You need at least one AI provider configured to generate content.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('Recommended:', 'kotacom-ai') . '</strong> ' . __('Start with Google AI (free tier available) or OpenAI for best results.', 'kotacom-ai') . '</p>'
+            );
+            
+            $tips = array(
+                __('Test API connections after entering keys', 'kotacom-ai'),
+                __('Most image providers offer free tiers - no API key needed for Lorem Picsum', 'kotacom-ai'),
+                __('Set reasonable default values to save time', 'kotacom-ai'),
+                __('Keep API keys secure and never share them', 'kotacom-ai')
+            );
+            $this->display_tips_box($tips);
+        });
+    }
+
+    /**
+     * Add help information for content refresh page
+     */
+    private function add_content_refresh_help_info() {
+        add_action('admin_notices', function() {
+            $this->display_help_box(
+                __('Content Refresh', 'kotacom-ai'),
+                '<p>' . __('Update existing posts with fresh AI-generated content. Select posts and choose what to refresh.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('What gets updated:', 'kotacom-ai') . '</strong> ' . __('Title, content, excerpt, meta description, or featured image based on your selection.', 'kotacom-ai') . '</p>'
+            );
+            
+            $tips = array(
+                __('Backup your content before refreshing important posts', 'kotacom-ai'),
+                __('Use filters to find posts that need updating', 'kotacom-ai'),
+                __('Refresh content periodically to maintain SEO relevance', 'kotacom-ai'),
+                __('Review refreshed content before making it live', 'kotacom-ai')
+            );
+            $this->display_tips_box($tips);
+        });
+    }
+
+    /**
+     * Add help information for logs page
+     */
+    private function add_logs_help_info() {
+        add_action('admin_notices', function() {
+            $this->display_help_box(
+                __('Activity Logs', 'kotacom-ai'),
+                '<p>' . __('Track all plugin activities and troubleshoot issues. View success rates and filter by action type.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('Color coding:', 'kotacom-ai') . '</strong> ' . __('Green = Success, Red = Error, Yellow = Warning, Blue = Info', 'kotacom-ai') . '</p>'
+            );
+            
+            $tips = array(
+                __('Check logs if content generation is failing', 'kotacom-ai'),
+                __('High error rates usually indicate API issues', 'kotacom-ai'),
+                __('Clear old logs periodically to maintain performance', 'kotacom-ai'),
+                __('Export logs for technical support if needed', 'kotacom-ai')
+            );
+            $this->display_tips_box($tips);
+        });
     }
 
     /**
@@ -476,6 +709,9 @@ class KotacomAI_Admin {
      */
     public function display_content_refresh_page() {
         if (!current_user_can('edit_posts')) return;
+        
+        // Add help information
+        $this->add_content_refresh_help_info();
         
         // Enhanced post query with pagination support
         $posts_per_page = 50;
@@ -706,6 +942,9 @@ class KotacomAI_Admin {
      */
     public function display_logs_page() {
         if (!current_user_can('manage_options')) return;
+        
+        // Add help information
+        $this->add_logs_help_info();
         
         // Handle clear logs action
         if (isset($_GET['action']) && $_GET['action'] === 'clear' && wp_verify_nonce($_GET['_wpnonce'], 'clear_logs')) {

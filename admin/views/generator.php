@@ -1,4 +1,4 @@
-<?php
+THIS SHOULD BE A LINTER ERROR<?php
 /**
  * Content Generator admin page - Enhanced with Inline Provider Selection
  */
@@ -15,6 +15,15 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
 
 <div class="wrap">
     <h1><?php _e('AI Content Generator', 'kotacom-ai'); ?></h1>
+    
+    <!-- Quick Start Guide -->
+    <div class="quick-actions">
+        <h4><?php _e('⚡ Quick Actions', 'kotacom-ai'); ?></h4>
+        <a href="<?php echo admin_url('admin.php?page=kotacom-ai-settings'); ?>" class="button"><?php _e('🔧 Setup API Keys', 'kotacom-ai'); ?></a>
+        <a href="<?php echo admin_url('admin.php?page=kotacom-ai-keywords'); ?>" class="button"><?php _e('📝 Manage Keywords', 'kotacom-ai'); ?></a>
+        <a href="<?php echo admin_url('admin.php?page=kotacom-ai-prompts'); ?>" class="button"><?php _e('💬 Create Prompts', 'kotacom-ai'); ?></a>
+        <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs'); ?>" class="button"><?php _e('📊 View Results', 'kotacom-ai'); ?></a>
+    </div>
     
     <div class="kotacom-ai-generator">
         <form id="kotacom-ai-generator-form">
@@ -105,8 +114,21 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
             
             <!-- Keywords Selection -->
             <div class="postbox">
-                <h2 class="hndle"><?php _e('Select Keywords', 'kotacom-ai'); ?></h2>
+                <h2 class="hndle">
+                    <?php _e('Select Keywords', 'kotacom-ai'); ?>
+                    <span class="tooltip">ℹ️
+                        <span class="tooltiptext"><?php _e('Choose keywords from your database or enter them manually. Keywords are the main topics your content will focus on.', 'kotacom-ai'); ?></span>
+                    </span>
+                </h2>
                 <div class="inside">
+                    <div class="info-card" style="margin-bottom: 15px;">
+                        <p><strong><?php _e('💡 Tips for better keywords:', 'kotacom-ai'); ?></strong></p>
+                        <ul style="margin-left: 20px;">
+                            <li><?php _e('Use specific, long-tail keywords (e.g., "WordPress SEO optimization" vs "SEO")', 'kotacom-ai'); ?></li>
+                            <li><?php _e('Select multiple related keywords for comprehensive content', 'kotacom-ai'); ?></li>
+                            <li><?php _e('Organize keywords by tags for better management', 'kotacom-ai'); ?></li>
+                        </ul>
+                    </div>
                     <div class="keyword-selection-tabs">
                         <button type="button" class="tab-button active" data-tab="existing"><?php _e('From Database', 'kotacom-ai'); ?></button>
                         <button type="button" class="tab-button" data-tab="manual"><?php _e('Manual Input', 'kotacom-ai'); ?></button>
@@ -169,28 +191,51 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
             
             <!-- Content Parameters -->
             <div class="postbox">
-                <h2 class="hndle"><?php _e('Content Parameters', 'kotacom-ai'); ?></h2>
+                <h2 class="hndle">
+                    <?php _e('Content Parameters', 'kotacom-ai'); ?>
+                    <span class="tooltip">ℹ️
+                        <span class="tooltiptext"><?php _e('Configure how your content should be written: tone, length, target audience, and industry focus.', 'kotacom-ai'); ?></span>
+                    </span>
+                </h2>
                 <div class="inside">
+                    <div class="info-card" style="margin-bottom: 15px;">
+                        <p><strong><?php _e('🎯 Parameter Guide:', 'kotacom-ai'); ?></strong></p>
+                        <ul style="margin-left: 20px;">
+                            <li><strong><?php _e('Tone:', 'kotacom-ai'); ?></strong> <?php _e('How the content should sound (professional, casual, etc.)', 'kotacom-ai'); ?></li>
+                            <li><strong><?php _e('Length:', 'kotacom-ai'); ?></strong> <?php _e('Longer content typically ranks better in search engines', 'kotacom-ai'); ?></li>
+                            <li><strong><?php _e('Audience:', 'kotacom-ai'); ?></strong> <?php _e('Who will read this content (beginners, experts, general)', 'kotacom-ai'); ?></li>
+                        </ul>
+                    </div>
                     <div class="parameters-grid">
                         <div class="parameter-field">
-                            <label for="tone"><?php _e('Tone:', 'kotacom-ai'); ?></label>
+                            <label for="tone">
+                                <?php _e('Tone:', 'kotacom-ai'); ?>
+                                <span class="tooltip">💡
+                                    <span class="tooltiptext"><?php _e('Choose the writing style. Informative = educational, Formal = professional, Casual = friendly, Persuasive = sales-focused, Creative = artistic', 'kotacom-ai'); ?></span>
+                                </span>
+                            </label>
                             <select id="tone" name="tone">
-                                <option value="informative"><?php _e('Informative', 'kotacom-ai'); ?></option>
-                                <option value="formal"><?php _e('Formal', 'kotacom-ai'); ?></option>
-                                <option value="casual"><?php _e('Casual', 'kotacom-ai'); ?></option>
-                                <option value="persuasive"><?php _e('Persuasive', 'kotacom-ai'); ?></option>
-                                <option value="creative"><?php _e('Creative', 'kotacom-ai'); ?></option>
+                                <option value="informative"><?php _e('📚 Informative (Educational)', 'kotacom-ai'); ?></option>
+                                <option value="formal"><?php _e('🎩 Formal (Professional)', 'kotacom-ai'); ?></option>
+                                <option value="casual"><?php _e('😊 Casual (Friendly)', 'kotacom-ai'); ?></option>
+                                <option value="persuasive"><?php _e('🎯 Persuasive (Sales)', 'kotacom-ai'); ?></option>
+                                <option value="creative"><?php _e('🎨 Creative (Artistic)', 'kotacom-ai'); ?></option>
                             </select>
                         </div>
                         
                         <div class="parameter-field">
-                            <label for="length"><?php _e('Target Length:', 'kotacom-ai'); ?></label>
+                            <label for="length">
+                                <?php _e('Target Length:', 'kotacom-ai'); ?>
+                                <span class="tooltip">📏
+                                    <span class="tooltiptext"><?php _e('Word count target. Longer content (800+ words) typically ranks better in search engines. Choose based on your content strategy.', 'kotacom-ai'); ?></span>
+                                </span>
+                            </label>
                             <select id="length" name="length">
-                                <option value="300"><?php _e('Short (300 words)', 'kotacom-ai'); ?></option>
-                                <option value="500" selected><?php _e('Medium (500 words)', 'kotacom-ai'); ?></option>
-                                <option value="800"><?php _e('Long (800 words)', 'kotacom-ai'); ?></option>
-                                <option value="1200"><?php _e('Very Long (1200 words)', 'kotacom-ai'); ?></option>
-                                <option value="custom"><?php _e('Custom Length', 'kotacom-ai'); ?></option>
+                                <option value="300"><?php _e('📄 Short (300 words) - Quick reads', 'kotacom-ai'); ?></option>
+                                <option value="500" selected><?php _e('📰 Medium (500 words) - Standard', 'kotacom-ai'); ?></option>
+                                <option value="800"><?php _e('📖 Long (800 words) - SEO-friendly', 'kotacom-ai'); ?></option>
+                                <option value="1200"><?php _e('📚 Very Long (1200 words) - In-depth', 'kotacom-ai'); ?></option>
+                                <option value="custom"><?php _e('⚙️ Custom Length', 'kotacom-ai'); ?></option>
                             </select>
                             
                             <div id="custom-length-container" style="display: none; margin-top: 10px;">

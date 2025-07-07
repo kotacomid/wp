@@ -11,6 +11,20 @@ if (!defined('ABSPATH')) {
 <div class="wrap">
     <h1><?php _e('Kotacom AI Settings', 'kotacom-ai'); ?></h1>
     
+    <!-- Quick Setup Guide -->
+    <div class="info-card">
+        <h3><span class="dashicons dashicons-admin-tools"></span> <?php _e('Quick Setup Guide', 'kotacom-ai'); ?></h3>
+        <p><?php _e('Get started in 3 easy steps:', 'kotacom-ai'); ?></p>
+        <ol style="margin-left: 20px;">
+            <li><strong><?php _e('Choose an AI Provider:', 'kotacom-ai'); ?></strong> <?php _e('Select a provider below (recommend Google AI for free tier)', 'kotacom-ai'); ?></li>
+            <li><strong><?php _e('Get API Key:', 'kotacom-ai'); ?></strong> <?php _e('Click the provider link to get your FREE API key', 'kotacom-ai'); ?></li>
+            <li><strong><?php _e('Test Connection:', 'kotacom-ai'); ?></strong> <?php _e('Click "Test API Connection" to verify setup', 'kotacom-ai'); ?></li>
+        </ol>
+        <div class="highlight">
+            <strong><?php _e('💡 Pro Tip:', 'kotacom-ai'); ?></strong> <?php _e('Most providers offer generous free tiers - no credit card required!', 'kotacom-ai'); ?>
+        </div>
+    </div>
+    
     <form method="post" action="options.php">
         <?php
         settings_fields('kotacom_ai_settings');
@@ -515,6 +529,19 @@ if (!defined('ABSPATH')) {
         <div class="postbox">
             <h2 class="hndle"><?php _e('Image Generator Settings', 'kotacom-ai'); ?></h2>
             <div class="inside">
+                <!-- Image Settings Help -->
+                <div class="info-card">
+                    <h3><span class="dashicons dashicons-format-image"></span> <?php _e('Image Generation Guide', 'kotacom-ai'); ?></h3>
+                    <p><?php _e('Configure automatic image generation for your content. Multiple providers ensure reliability through fallback system.', 'kotacom-ai'); ?></p>
+                    <div class="highlight">
+                        <strong><?php _e('🆓 FREE Providers Available:', 'kotacom-ai'); ?></strong><br>
+                        • <strong>Lorem Picsum:</strong> <?php _e('No API key needed - always works!', 'kotacom-ai'); ?><br>
+                        • <strong>Placeholder.co:</strong> <?php _e('No API key needed - solid color backgrounds', 'kotacom-ai'); ?><br>
+                        • <strong>Unsplash:</strong> <?php _e('Beautiful photos - 50 requests/hour free', 'kotacom-ai'); ?><br>
+                        • <strong>Pixabay:</strong> <?php _e('Stock photos - 5000 requests/hour free', 'kotacom-ai'); ?><br>
+                        • <strong>Pexels:</strong> <?php _e('Quality photos - 200 requests/hour free', 'kotacom-ai'); ?>
+                    </div>
+                </div>
                 <table class="form-table">
                     <tr>
                         <th scope="row"><?php _e('Default Image Provider', 'kotacom-ai'); ?></th>
