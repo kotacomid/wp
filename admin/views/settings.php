@@ -281,6 +281,24 @@ if (!defined('ABSPATH')) {
                     </table>
                 </div>
                 
+                <!-- Unsplash Settings -->
+                <div class="api-settings" id="unsplash-settings" style="display: none;">
+                    <h3><?php _e('Unsplash Settings', 'kotacom-ai'); ?> <span class="free-badge">FREE</span></h3>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><?php _e('Access Key', 'kotacom-ai'); ?></th>
+                            <td>
+                                <input type="text" name="kotacom_ai_unsplash_access_key" value="<?php echo esc_attr(get_option('kotacom_ai_unsplash_access_key')); ?>" class="regular-text">
+                                <p class="description">
+                                    <?php _e('Get your access key from', 'kotacom-ai'); ?>
+                                    <a href="https://unsplash.com/oauth/applications" target="_blank">Unsplash Developers</a>
+                                    <br><strong><?php _e('Free: 50 requests per hour', 'kotacom-ai'); ?></strong>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                
                 <!-- OpenAI Settings -->
                 <div class="api-settings" id="openai-settings" style="display: none;">
                     <h3><?php _e('OpenAI Settings', 'kotacom-ai'); ?> <span class="paid-badge"><?php _e('PAID SERVICE', 'kotacom-ai'); ?></span></h3>
