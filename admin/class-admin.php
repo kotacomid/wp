@@ -227,8 +227,13 @@ class KotacomAI_Admin {
         register_setting('kotacom_ai_settings', 'kotacom_ai_replicate_api_key');
         register_setting('kotacom_ai_settings', 'kotacom_ai_replicate_model');
         
-        // Unsplash
+        // Image Provider Settings
+        register_setting('kotacom_ai_settings', 'kotacom_ai_default_image_provider');
+        register_setting('kotacom_ai_settings', 'kotacom_ai_default_image_size');
+        register_setting('kotacom_ai_settings', 'kotacom_ai_auto_featured_image');
         register_setting('kotacom_ai_settings', 'kotacom_ai_unsplash_access_key');
+        register_setting('kotacom_ai_settings', 'kotacom_ai_pixabay_api_key');
+        register_setting('kotacom_ai_settings', 'kotacom_ai_pexels_api_key');
         
         // Default Parameters
         register_setting('kotacom_ai_settings', 'kotacom_ai_default_tone');

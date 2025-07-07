@@ -511,6 +511,117 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
         
+        <!-- Image Generator Settings -->
+        <div class="postbox">
+            <h2 class="hndle"><?php _e('Image Generator Settings', 'kotacom-ai'); ?></h2>
+            <div class="inside">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php _e('Default Image Provider', 'kotacom-ai'); ?></th>
+                        <td>
+                            <select name="kotacom_ai_default_image_provider">
+                                <?php
+                                $current_provider = get_option('kotacom_ai_default_image_provider', 'unsplash');
+                                $image_generator = new KotacomAI_Image_Generator();
+                                $image_providers = $image_generator->get_providers();
+                                foreach ($image_providers as $key => $name):
+                                ?>
+                                <option value="<?php echo esc_attr($key); ?>" <?php selected($current_provider, $key); ?>>
+                                    <?php echo esc_html($name); ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description"><?php _e('Choose your preferred image provider for auto-generated images.', 'kotacom-ai'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Default Image Size', 'kotacom-ai'); ?></th>
+                        <td>
+                            <select name="kotacom_ai_default_image_size">
+                                <?php
+                                $current_size = get_option('kotacom_ai_default_image_size', '1200x800');
+                                $sizes = array(
+                                    '400x300' => __('Small (400x300)', 'kotacom-ai'),
+                                    '800x600' => __('Medium (800x600)', 'kotacom-ai'),
+                                    '1200x800' => __('Large (1200x800)', 'kotacom-ai'),
+                                    '1920x1080' => __('Extra Large (1920x1080)', 'kotacom-ai'),
+                                    '800x800' => __('Square (800x800)', 'kotacom-ai'),
+                                    '600x800' => __('Portrait (600x800)', 'kotacom-ai')
+                                );
+                                foreach ($sizes as $key => $name):
+                                ?>
+                                <option value="<?php echo esc_attr($key); ?>" <?php selected($current_size, $key); ?>>
+                                    <?php echo esc_html($name); ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Auto Generate Featured Images', 'kotacom-ai'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="kotacom_ai_auto_featured_image" value="1" <?php checked(get_option('kotacom_ai_auto_featured_image')); ?>>
+                                <?php _e('Automatically generate featured images for new posts', 'kotacom-ai'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                </table>
+                
+                <!-- Image Provider API Keys -->
+                <h3><?php _e('Image Provider API Keys', 'kotacom-ai'); ?></h3>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php _e('Unsplash Access Key', 'kotacom-ai'); ?> <span class="free-badge">FREE</span></th>
+                        <td>
+                            <input type="text" name="kotacom_ai_unsplash_access_key" value="<?php echo esc_attr(get_option('kotacom_ai_unsplash_access_key')); ?>" class="regular-text">
+                            <p class="description">
+                                <?php _e('Get your access key from', 'kotacom-ai'); ?>
+                                <a href="https://unsplash.com/oauth/applications" target="_blank">Unsplash Developers</a>
+                                <br><strong><?php _e('Free: 50 requests per hour', 'kotacom-ai'); ?></strong>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Pixabay API Key', 'kotacom-ai'); ?> <span class="free-badge">FREE</span></th>
+                        <td>
+                            <input type="text" name="kotacom_ai_pixabay_api_key" value="<?php echo esc_attr(get_option('kotacom_ai_pixabay_api_key')); ?>" class="regular-text">
+                            <p class="description">
+                                <?php _e('Get your API key from', 'kotacom-ai'); ?>
+                                <a href="https://pixabay.com/api/docs/" target="_blank">Pixabay API</a>
+                                <br><strong><?php _e('Free: 5000 requests per hour', 'kotacom-ai'); ?></strong>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Pexels API Key', 'kotacom-ai'); ?> <span class="free-badge">FREE</span></th>
+                        <td>
+                            <input type="text" name="kotacom_ai_pexels_api_key" value="<?php echo esc_attr(get_option('kotacom_ai_pexels_api_key')); ?>" class="regular-text">
+                            <p class="description">
+                                <?php _e('Get your API key from', 'kotacom-ai'); ?>
+                                <a href="https://www.pexels.com/api/" target="_blank">Pexels API</a>
+                                <br><strong><?php _e('Free: 200 requests per hour', 'kotacom-ai'); ?></strong>
+                            </p>
+                        </td>
+                    </tr>
+                                 </table>
+                 
+                 <!-- Test Image Providers -->
+                 <div class="image-provider-test">
+                     <h3><?php _e('Test Image Providers', 'kotacom-ai'); ?></h3>
+                     <p class="description"><?php _e('Test your image provider connections to ensure they are working correctly.', 'kotacom-ai'); ?></p>
+                     <div class="provider-test-buttons">
+                         <button type="button" class="button test-image-provider" data-provider="unsplash"><?php _e('Test Unsplash', 'kotacom-ai'); ?></button>
+                         <button type="button" class="button test-image-provider" data-provider="pixabay"><?php _e('Test Pixabay', 'kotacom-ai'); ?></button>
+                         <button type="button" class="button test-image-provider" data-provider="pexels"><?php _e('Test Pexels', 'kotacom-ai'); ?></button>
+                         <button type="button" class="button test-image-provider" data-provider="picsum"><?php _e('Test Lorem Picsum', 'kotacom-ai'); ?></button>
+                         <button type="button" class="button test-image-provider" data-provider="placeholder"><?php _e('Test Placeholder', 'kotacom-ai'); ?></button>
+                     </div>
+                     <div id="image-provider-test-result"></div>
+                 </div>
+             </div>
+         </div>
+
         <!-- Queue Settings -->
         <div class="postbox">
             <h2 class="hndle"><?php _e('Queue Settings', 'kotacom-ai'); ?></h2>
@@ -579,6 +690,31 @@ if (!defined('ABSPATH')) {
     border: 1px solid #ddd;
     border-radius: 4px;
 }
+
+.image-provider-test {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f0f8ff;
+    border: 1px solid #007cba;
+    border-radius: 4px;
+}
+
+.provider-test-buttons {
+    margin: 15px 0;
+}
+
+.provider-test-buttons .button {
+    margin-right: 10px;
+    margin-bottom: 5px;
+}
+
+.test-image-provider.testing {
+    opacity: 0.6;
+}
+
+#image-provider-test-result {
+    margin-top: 15px;
+}
 </style>
 
 <script>
@@ -634,6 +770,41 @@ jQuery(document).ready(function($) {
             complete: function() {
                 $btn.prop('disabled', false);
                 $spinner.removeClass('is-active');
+            }
+        });
+    });
+    
+    // Test image providers
+    $('.test-image-provider').on('click', function() {
+        var $btn = $(this);
+        var provider = $btn.data('provider');
+        var $result = $('#image-provider-test-result');
+        
+        if ($btn.hasClass('testing')) return;
+        
+        $btn.addClass('testing').prop('disabled', true).text('Testing...');
+        $result.empty();
+        
+        $.ajax({
+            url: kotacomAI.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'kotacom_test_image_provider',
+                nonce: kotacomAI.nonce,
+                provider: provider
+            },
+            success: function(response) {
+                if (response.success) {
+                    $result.html('<div class="notice notice-success inline"><p><strong>' + provider.toUpperCase() + ':</strong> ' + response.data.message + '</p></div>');
+                } else {
+                    $result.html('<div class="notice notice-error inline"><p><strong>' + provider.toUpperCase() + ':</strong> ' + response.data.message + '</p></div>');
+                }
+            },
+            error: function() {
+                $result.html('<div class="notice notice-error inline"><p><strong>' + provider.toUpperCase() + ':</strong> Connection test failed. Please try again.</p></div>');
+            },
+            complete: function() {
+                $btn.removeClass('testing').prop('disabled', false).text('Test ' + provider.charAt(0).toUpperCase() + provider.slice(1));
             }
         });
     });

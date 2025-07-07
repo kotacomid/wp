@@ -323,12 +323,17 @@ Digunakan untuk operasi CRUD pada tabel kustom (`kotacom_keywords`, `kotacom_pro
 ### 13. WP Cron/Background Process
 - (Jika ada) Menggunakan Action Scheduler atau WP Cron untuk proses batch/antrian
 
-### 1.3.0 Highlights
-- Hero Image auto-generation (row action)
-- Multi-source images (OpenAI / Unsplash / Replicate)
-- Bulk Content Refresh page
-- Content Drip scheduling field
-- New `[ai_image]` shortcode / block
+### 1.3.0 Highlights - Enhanced Image Generator
+- **Multi-Provider FREE Images**: Unsplash, Pixabay, Pexels, Lorem Picsum, Placeholder.co
+- **Advanced Shortcode**: `[ai_image prompt="..." provider="unsplash" featured="yes" size="1200x800" caption="..." align="center"]`
+- **Provider Fallback System**: Automatic failover between providers for reliability
+- **AI-Generated Alt Text**: SEO-friendly alt text using AI for accessibility
+- **Hero Image Generation**: One-click row action in Posts list
+- **Provider Testing**: Built-in connection tests for all image providers
+- **Template Integration**: Image settings in Template Editor
+- **Auto Featured Images**: Automatic featured image generation for new posts
+- **Bulk Content Refresh**: Mass content update page
+- **Smart Scheduling**: Content drip scheduling field
 
 ---
 

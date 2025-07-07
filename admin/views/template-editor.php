@@ -132,6 +132,39 @@ $existing_templates = $template_manager->get_templates();
                         </div>
                         
                         <div class="property-group">
+                            <h4><?php _e('Image Generation', 'kotacom-ai'); ?></h4>
+                            <label>
+                                <input type="checkbox" id="auto-generate-images"> 
+                                <?php _e('Auto-generate images in content', 'kotacom-ai'); ?>
+                            </label>
+                            <label>
+                                <?php _e('Default Image Provider:', 'kotacom-ai'); ?>
+                                <select id="template-image-provider">
+                                    <?php
+                                    $image_generator = new KotacomAI_Image_Generator();
+                                    $image_providers = $image_generator->get_providers();
+                                    foreach ($image_providers as $key => $name):
+                                    ?>
+                                    <option value="<?php echo esc_attr($key); ?>"><?php echo esc_html($name); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                            <label>
+                                <?php _e('Default Image Size:', 'kotacom-ai'); ?>
+                                <select id="template-image-size">
+                                    <option value="400x300"><?php _e('Small (400x300)', 'kotacom-ai'); ?></option>
+                                    <option value="800x600" selected><?php _e('Medium (800x600)', 'kotacom-ai'); ?></option>
+                                    <option value="1200x800"><?php _e('Large (1200x800)', 'kotacom-ai'); ?></option>
+                                    <option value="800x800"><?php _e('Square (800x800)', 'kotacom-ai'); ?></option>
+                                </select>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="generate-featured-image"> 
+                                <?php _e('Generate featured image for posts', 'kotacom-ai'); ?>
+                            </label>
+                        </div>
+                        
+                        <div class="property-group">
                             <h4><?php _e('Variables', 'kotacom-ai'); ?></h4>
                             <div id="variables-list">
                                 <!-- Variables will be added here -->
@@ -163,6 +196,10 @@ $existing_templates = $template_manager->get_templates();
                             <div class="shortcode-example">
                                 <code>[ai_content type="paragraph" prompt="Write about {keyword}" length="200"]</code>
                                 <p><?php _e('Generates AI content based on prompt', 'kotacom-ai'); ?></p>
+                            </div>
+                            <div class="shortcode-example">
+                                <code>[ai_image prompt="{keyword}" size="800x600" featured="no" provider="unsplash"]</code>
+                                <p><?php _e('Generates AI-powered images with multiple provider support', 'kotacom-ai'); ?></p>
                             </div>
                             <div class="shortcode-example">
                                 <code>[ai_section title="About {keyword}"]...[/ai_section]</code>

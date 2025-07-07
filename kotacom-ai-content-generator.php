@@ -228,6 +228,7 @@ class KotacomAI {
 
         // Image generation
         add_action('wp_ajax_kotacom_generate_image', array($this, 'ajax_generate_image'));
+        add_action('wp_ajax_kotacom_test_image_provider', array($this, 'ajax_test_image_provider'));
         add_action('wp_ajax_kotacom_refresh_posts', array($this, 'ajax_refresh_posts'));
     }
     
@@ -688,7 +689,7 @@ class KotacomAI {
     
     /**
      * AJAX: Generate AI Image and optionally set as featured image
-     * POST params: prompt, size (optional), post_id (optional), featured (yes/no)
+     * POST params: prompt, size (optional), post_id (optional), featured (yes/no), provider (optional), fallback (yes/no)
      */
     public function ajax_generate_image() {
         check_ajax_referer('kotacom_ai_nonce', 'nonce');
@@ -697,46 +698,93 @@ class KotacomAI {
             wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
         }
 
-        $prompt   = sanitize_text_field($_POST['prompt'] ?? '');
-        $size     = sanitize_text_field($_POST['size'] ?? '1024x1024');
-        $post_id  = intval($_POST['post_id'] ?? 0);
+        $prompt = sanitize_text_field($_POST['prompt'] ?? '');
+        $size = sanitize_text_field($_POST['size'] ?? get_option('kotacom_ai_default_image_size', '1024x1024'));
+        $post_id = intval($_POST['post_id'] ?? 0);
         $featured = sanitize_text_field($_POST['featured'] ?? 'no') === 'yes';
-        $provider = sanitize_text_field($_POST['provider'] ?? 'openai');
+        $provider = sanitize_text_field($_POST['provider'] ?? get_option('kotacom_ai_default_image_provider', 'unsplash'));
+        $enable_fallback = sanitize_text_field($_POST['fallback'] ?? 'yes') === 'yes';
 
         if (empty($prompt)) {
             wp_send_json_error(array('message' => __('Prompt is required', 'kotacom-ai')));
         }
 
-        $img_gen  = new KotacomAI_Image_Generator();
-        $result   = $img_gen->generate_image($prompt, $size, true, $provider);
+        $img_gen = new KotacomAI_Image_Generator();
+        $result = $img_gen->generate_image($prompt, $size, true, $provider, $enable_fallback);
 
         if (!$result['success']) {
-            KotacomAI_Logger::add('image', 0, $post_id, $result['error']);
+            if (class_exists('KotacomAI_Logger')) {
+                KotacomAI_Logger::add('image_generation', 0, $post_id, $result['error']);
+            }
             wp_send_json_error(array('message' => $result['error']));
         }
 
-        // Sideload image into media library
-        if (!function_exists('media_sideload_image')) {
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-            require_once ABSPATH . 'wp-admin/includes/media.php';
-            require_once ABSPATH . 'wp-admin/includes/image.php';
-        }
-
         $attachment_id = 0;
+        $response_data = array(
+            'url' => $result['url'],
+            'alt' => $result['alt'],
+            'provider' => $result['provider'] ?? $provider,
+            'attachment_id' => 0
+        );
+
+        // Upload to media library if post_id is provided
         if ($post_id) {
-            $attachment_id = media_sideload_image($result['url'], $post_id, $result['alt'], 'id');
-            // Set featured image if requested and none exists
-            if ($featured && !is_wp_error($attachment_id) && !has_post_thumbnail($post_id)) {
-                set_post_thumbnail($post_id, $attachment_id);
+            $attachment_id = $img_gen->set_featured_image($post_id, $result['url'], $result['alt']);
+            
+            if ($attachment_id) {
+                $response_data['attachment_id'] = $attachment_id;
+                
+                // Set as featured image if requested
+                if ($featured) {
+                    set_post_thumbnail($post_id, $attachment_id);
+                    $response_data['featured_set'] = true;
+                }
             }
         }
 
-        KotacomAI_Logger::add('image', 1, $post_id, 'OK');
-        wp_send_json_success(array(
-            'url'        => $result['url'],
-            'alt'        => $result['alt'],
-            'attachment' => $attachment_id,
-        ));
+        if (class_exists('KotacomAI_Logger')) {
+            KotacomAI_Logger::add(
+                'image_generation', 
+                1, 
+                $post_id, 
+                sprintf('Provider: %s, Attachment: %s', $provider, $attachment_id ?: 'N/A')
+            );
+        }
+
+        wp_send_json_success($response_data);
+    }
+
+    /**
+     * AJAX: Test Image Provider Connection
+     */
+    public function ajax_test_image_provider() {
+        check_ajax_referer('kotacom_ai_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+        }
+
+        $provider = sanitize_text_field($_POST['provider'] ?? '');
+
+        if (empty($provider)) {
+            wp_send_json_error(array('message' => __('Provider is required', 'kotacom-ai')));
+        }
+
+        $img_gen = new KotacomAI_Image_Generator();
+        $result = $img_gen->test_provider($provider);
+
+        if ($result['success']) {
+            wp_send_json_success(array(
+                'message' => sprintf(__('%s connection successful!', 'kotacom-ai'), ucfirst($provider)),
+                'provider' => $provider,
+                'url' => $result['url']
+            ));
+        } else {
+            wp_send_json_error(array(
+                'message' => sprintf(__('%s connection failed: %s', 'kotacom-ai'), ucfirst($provider), $result['error']),
+                'provider' => $provider
+            ));
+        }
     }
     
     // NEW AJAX Handlers for Provider Management
