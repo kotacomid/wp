@@ -323,6 +323,13 @@ Digunakan untuk operasi CRUD pada tabel kustom (`kotacom_keywords`, `kotacom_pro
 ### 13. WP Cron/Background Process
 - (Jika ada) Menggunakan Action Scheduler atau WP Cron untuk proses batch/antrian
 
+### 1.3.0 Highlights
+- Hero Image auto-generation (row action)
+- Multi-source images (OpenAI / Unsplash / Replicate)
+- Bulk Content Refresh page
+- Content Drip scheduling field
+- New `[ai_image]` shortcode / block
+
 ---
 
 Untuk dokumentasi lebih lengkap, cek file `plugin.md` dan komentar di setiap file sumber.
