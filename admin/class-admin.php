@@ -242,6 +242,23 @@ class KotacomAI_Admin {
         register_setting('kotacom_ai_settings', 'kotacom_ai_internal_link_rule');
         register_setting('kotacom_ai_settings', 'kotacom_ai_internal_link_anchor_style');
         register_setting('kotacom_ai_settings', 'kotacom_ai_internal_link_dict');
+
+        // Multi Provider list
+        register_setting('kotacom_ai_settings', 'kotacom_ai_providers');
+    }
+
+    /**
+     * Run database migrations if needed
+     */
+    private function run_migrations() {
+        $current_version = get_option('kotacom_ai_version', '1.0.0');
+        $new_version = KOTACOM_AI_VERSION;
+
+        if (version_compare($current_version, $new_version, '<')) {
+            // Add migration logic here if needed
+            // For example, if you need to add a new option or update an existing one
+            // update_option('kotacom_ai_version', $new_version);
+        }
     }
     
     /**

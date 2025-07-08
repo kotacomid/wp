@@ -31,6 +31,124 @@ if (!defined('ABSPATH')) {
         do_settings_sections('kotacom_ai_settings');
         ?>
         
+        <?php 
+    // Providers array
+    $api_handler = new KotacomAI_API_Handler();
+    $providers_list = $api_handler->get_providers();
+    $saved_providers = get_option('kotacom_ai_providers', []);
+    if(!is_array($saved_providers)) $saved_providers = [];
+?>
+
+<div class="postbox">
+    <h2 class="hndle">🤖 <?php _e('AI Providers', 'kotacom-ai'); ?></h2>
+    <div class="inside">
+        <p><?php _e('Configure one or multiple AI providers. The plugin will try them in order (top = highest priority).', 'kotacom-ai'); ?></p>
+        <table class="widefat fixed" id="ai-provider-table">
+            <thead>
+                <tr>
+                    <th><?php _e('Enable', 'kotacom-ai'); ?></th>
+                    <th><?php _e('Provider', 'kotacom-ai'); ?></th>
+                    <th><?php _e('Model', 'kotacom-ai'); ?></th>
+                    <th><?php _e('API Key', 'kotacom-ai'); ?></th>
+                    <th><?php _e('Test', 'kotacom-ai'); ?></th>
+                    <th style="width:30px;"></th>
+                </tr>
+            </thead>
+            <tbody class="sortable-body">
+                <?php if(empty($saved_providers)): ?>
+                    <tr class="provider-row">
+                        <td><input type="checkbox" class="prov-enable" checked></td>
+                        <td>
+                            <select class="prov-name" name="prov_name">
+                                <?php foreach($providers_list as $key=>$prov): ?>
+                                    <option value="<?php echo esc_attr($key); ?>" data-models='<?php echo esc_attr(json_encode($api_handler->get_provider_models($key))); ?>'><?php echo esc_html($prov['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                        <td><select class="prov-model" name="prov_model"></select></td>
+                        <td><input type="password" class="prov-key" placeholder="sk-..." style="width:100%;"></td>
+                        <td><button type="button" class="button test-prov"><?php _e('Test', 'kotacom-ai'); ?></button></td>
+                        <td><span class="dashicons dashicons-move handle"></span></td>
+                    </tr>
+                <?php else: foreach($saved_providers as $prov): ?>
+                    <tr class="provider-row">
+                        <td><input type="checkbox" class="prov-enable" <?php checked($prov['enabled']); ?>></td>
+                        <td>
+                            <select class="prov-name" name="prov_name">
+                                <?php foreach($providers_list as $key=>$pr): ?>
+                                    <option value="<?php echo esc_attr($key); ?>" data-models='<?php echo esc_attr(json_encode($api_handler->get_provider_models($key))); ?>' <?php selected($prov['provider'],$key); ?>><?php echo esc_html($pr['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                        <td><select class="prov-model" name="prov_model"><option value="<?php echo esc_attr($prov['model']); ?>"><?php echo esc_html($prov['model']); ?></option></select></td>
+                        <td><input type="password" class="prov-key" value="<?php echo esc_attr($prov['key']); ?>" style="width:100%;"></td>
+                        <td><button type="button" class="button test-prov"><?php _e('Test', 'kotacom-ai'); ?></button></td>
+                        <td><span class="dashicons dashicons-move handle"></span></td>
+                    </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+        <button type="button" class="button" id="add-provider-row"><?php _e('Add Provider', 'kotacom-ai'); ?></button>
+        <input type="hidden" name="kotacom_ai_providers" id="providers-json" value="" />
+    </div>
+</div>
+
+<script>
+(function($){
+    function loadModels($row){
+        const sel=$row.find('.prov-name');
+        const models=sel.find('option:selected').data('models');
+        let list={};
+        try{list=JSON.parse(models);}catch(e){list={};}
+        const modelSel=$row.find('.prov-model').empty();
+        $.each(list,function(k,v){ modelSel.append('<option value="'+k+'">'+v+'</option>'); });
+        if($row.data('selectedModel')){
+            modelSel.val($row.data('selectedModel'));
+        }
+    }
+    $(document).ready(function(){
+        // Init models for existing rows
+        $('#ai-provider-table .provider-row').each(function(){ loadModels($(this)); });
+        // Change provider → reload model list
+        $('#ai-provider-table').on('change','.prov-name',function(){ loadModels($(this).closest('tr')); });
+        // Add row
+        $('#add-provider-row').on('click',function(){
+            const $tpl=$('#ai-provider-table .provider-row:first').clone();
+            $tpl.find('input,select').val('');
+            $tpl.find('.prov-enable').prop('checked',true);
+            $('#ai-provider-table tbody').append($tpl);
+            loadModels($tpl);
+        });
+        // Sortable
+        $('.sortable-body').sortable({ handle:'.handle' });
+        // On form submit serialize table to hidden input
+        $('#post').on('submit',function(){
+            const arr=[];
+            $('#ai-provider-table .provider-row').each(function(){
+                arr.push({
+                    enabled: $(this).find('.prov-enable').is(':checked')?1:0,
+                    provider: $(this).find('.prov-name').val(),
+                    model: $(this).find('.prov-model').val(),
+                    key: $(this).find('.prov-key').val()
+                });
+            });
+            $('#providers-json').val(JSON.stringify(arr));
+        });
+        // Test button
+        $('#ai-provider-table').on('click','.test-prov',function(){
+            const $row=$(this).closest('tr');
+            const provider=$row.find('.prov-name').val();
+            const key=$row.find('.prov-key').val();
+            const btn=$(this).prop('disabled',true).text('...');
+            $.post(ajaxurl,{action:'kotacom_test_api',nonce:'<?php echo wp_create_nonce('kotacom_ai_nonce'); ?>',provider:provider,api_key:key},function(res){
+                alert(res.success?'✔ OK':'✖ '+res.data.message);
+            }).always(()=>btn.prop('disabled',false).text('<?php _e('Test','kotacom-ai'); ?>'));
+        });
+    });
+})(jQuery);
+</script>
+
+
         <!-- API Settings -->
         <div class="postbox">
             <h2 class="hndle"><?php _e('AI Provider Configuration', 'kotacom-ai'); ?></h2>
