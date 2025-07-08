@@ -235,6 +235,13 @@ class KotacomAI_Admin {
         // Queue Settings
         register_setting('kotacom_ai_settings', 'kotacom_ai_queue_batch_size');
         register_setting('kotacom_ai_settings', 'kotacom_ai_queue_processing_interval');
+
+        // Internal Linking Settings
+        register_setting('kotacom_ai_settings', 'kotacom_ai_internal_link_enable');
+        register_setting('kotacom_ai_settings', 'kotacom_ai_internal_link_max');
+        register_setting('kotacom_ai_settings', 'kotacom_ai_internal_link_rule');
+        register_setting('kotacom_ai_settings', 'kotacom_ai_internal_link_anchor_style');
+        register_setting('kotacom_ai_settings', 'kotacom_ai_internal_link_dict');
     }
     
     /**

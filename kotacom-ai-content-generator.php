@@ -151,6 +151,9 @@ class KotacomAI {
 
         // Auto hero image on publish
         add_action('transition_post_status', array($this, 'maybe_generate_hero_image'), 10, 3);
+
+        // Internal link pass
+        add_action('transition_post_status', array($this, 'maybe_add_internal_links'), 20, 3);
     }
 
     /**
@@ -196,6 +199,85 @@ class KotacomAI {
                 set_post_thumbnail($post->ID, $attachment_id);
                 KotacomAI_Logger::add('auto_hero_success', 1, $post->ID, 'Hero image set');
             }
+        }
+    }
+
+    /**
+     * Auto internal-link insertion on publish
+     */
+    public function maybe_add_internal_links($new_status, $old_status, $post){
+        if($new_status !== 'publish' || $new_status === $old_status) return;
+        if(!get_option('kotacom_ai_internal_link_enable')) return;
+        if($post->post_type !== 'post') return;
+
+        $max = intval(get_option('kotacom_ai_internal_link_max', 5));
+        if($max < 1) return;
+
+        $rule = get_option('kotacom_ai_internal_link_rule','tags');
+        $anchor_style = get_option('kotacom_ai_internal_link_anchor_style','full');
+
+        $content = $post->post_content;
+
+        $links_added = 0;
+
+        // 1. Keyword Dictionary replacements (high priority)
+        $dict_raw = get_option('kotacom_ai_internal_link_dict','');
+        if($dict_raw){
+            $lines = array_filter(array_map('trim', explode("\n", $dict_raw)));
+            foreach($lines as $line){
+                list($kw,$url) = array_map('trim', explode(',', $line));
+                if(!$kw||!$url) continue;
+                if($links_added >= $max) break;
+                if(stripos($content,$kw)!==false){
+                    // If url numeric treat as post_id
+                    if(is_numeric($url)) $url = get_permalink(intval($url));
+                    $anchor = '<a href="'.esc_url($url).'">'.esc_html($kw).'</a>';
+                    $content = preg_replace('/'.preg_quote($kw,'/').'/i', $anchor, $content, 1);
+                    $links_added++;
+                }
+            }
+        }
+
+        if($links_added >= $max){
+            wp_update_post(['ID'=>$post->ID,'post_content'=>$content]);
+            KotacomAI_Logger::add('internal_link',1,$post->ID,"Dict links only ({$links_added})");
+            return;
+        }
+
+        // 2. Tag/Category matching
+        $tag_ids = wp_get_post_tags($post->ID, ['fields'=>'ids']);
+        $cat_ids = wp_get_post_categories($post->ID);
+
+        $args = ['post_type'=>'post','posts_per_page'=>20,'post__not_in'=>[$post->ID],'orderby'=>'date','order'=>'DESC'];
+        if($rule==='tags'){
+            if(empty($tag_ids)) return; $args['tag__in']=$tag_ids;
+        }elseif($rule==='category'){
+            if(empty($cat_ids)) return; $args['category__in']=$cat_ids;
+        }else{
+            $tax_query = [];
+            if($tag_ids) $tax_query[] = ['taxonomy'=>'post_tag','terms'=>$tag_ids,'field'=>'term_id'];
+            if($cat_ids) $tax_query[] = ['taxonomy'=>'category','terms'=>$cat_ids,'field'=>'term_id'];
+            if($tax_query) $args['tax_query']=[ 'relation'=>'OR', ...$tax_query ];
+        }
+
+        $related = get_posts($args);
+        foreach($related as $rel){
+            if($links_added >= $max) break;
+            $title = $rel->post_title;
+            $anchor = $title;
+            if($anchor_style==='truncate'){
+                $words = explode(' ', $title);
+                $anchor = implode(' ', array_slice($words,0,5));
+            }
+            $link_html = '<a href="'.get_permalink($rel->ID).'">'.esc_html($anchor).'</a>';
+            // simple: append at end as list
+            $content .= "\n<p>".__('Read also:','kotacom-ai').' '.$link_html.'</p>'; 
+            $links_added++;
+        }
+
+        if($links_added>0){
+            wp_update_post(['ID'=>$post->ID,'post_content'=>$content]);
+            KotacomAI_Logger::add('internal_link',1,$post->ID,"Auto links added: {$links_added}");
         }
     }
     

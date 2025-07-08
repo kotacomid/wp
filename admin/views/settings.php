@@ -685,6 +685,54 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
         
+        <!-- Internal Linking Settings -->
+        <div class="postbox">
+            <h2 class="hndle">🔗 <?php _e('Internal Linking', 'kotacom-ai'); ?></h2>
+            <div class="inside">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php _e('Enable Auto Internal Links', 'kotacom-ai'); ?></th>
+                        <td>
+                            <input type="checkbox" name="kotacom_ai_internal_link_enable" value="1" <?php checked(get_option('kotacom_ai_internal_link_enable')); ?> />
+                            <p class="description"><?php _e('Automatically insert contextual links to related posts when a post is published.', 'kotacom-ai'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Max Links per Post', 'kotacom-ai'); ?></th>
+                        <td>
+                            <input type="number" name="kotacom_ai_internal_link_max" value="<?php echo esc_attr(get_option('kotacom_ai_internal_link_max', 5)); ?>" min="1" max="10" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Link Targets', 'kotacom-ai'); ?></th>
+                        <td>
+                            <select name="kotacom_ai_internal_link_rule">
+                                <option value="tags" <?php selected(get_option('kotacom_ai_internal_link_rule', 'tags'), 'tags'); ?>><?php _e('Same Tags', 'kotacom-ai'); ?></option>
+                                <option value="category" <?php selected(get_option('kotacom_ai_internal_link_rule', 'tags'), 'category'); ?>><?php _e('Same Category', 'kotacom-ai'); ?></option>
+                                <option value="both" <?php selected(get_option('kotacom_ai_internal_link_rule', 'tags'), 'both'); ?>><?php _e('Tags OR Category', 'kotacom-ai'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Anchor Style', 'kotacom-ai'); ?></th>
+                        <td>
+                            <select name="kotacom_ai_internal_link_anchor_style">
+                                <option value="full" <?php selected(get_option('kotacom_ai_internal_link_anchor_style', 'full'), 'full'); ?>><?php _e('Full Title', 'kotacom-ai'); ?></option>
+                                <option value="truncate" <?php selected(get_option('kotacom_ai_internal_link_anchor_style', 'full'), 'truncate'); ?>><?php _e('First 5 Words', 'kotacom-ai'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Keyword Dictionary (keyword,url or keyword,post_id)', 'kotacom-ai'); ?></th>
+                        <td>
+                            <textarea name="kotacom_ai_internal_link_dict" rows="6" cols="60" placeholder="seo audit,123\nwordpress,https://example.com/wordpress-guide"><?php echo esc_textarea(get_option('kotacom_ai_internal_link_dict', '')); ?></textarea>
+                            <p class="description"><?php _e('One per line: keyword,URL-or-PostID. These links override tag/category matching.', 'kotacom-ai'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
         <?php submit_button(); ?>
     </form>
 </div>
