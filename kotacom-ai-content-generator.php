@@ -148,6 +148,55 @@ class KotacomAI {
         
         // AJAX hooks
         $this->setup_ajax_hooks();
+
+        // Auto hero image on publish
+        add_action('transition_post_status', array($this, 'maybe_generate_hero_image'), 10, 3);
+    }
+
+    /**
+     * Generate hero image automatically if enabled, no featured image, and post is publishing.
+     */
+    public function maybe_generate_hero_image($new_status, $old_status, $post) {
+        // Only when moving to publish
+        if ($old_status === $new_status || $new_status !== 'publish') {
+            return;
+        }
+
+        // Respect setting
+        if (!get_option('kotacom_ai_auto_featured_image')) {
+            return;
+        }
+
+        // Only for posts (public types)
+        if ($post->post_type !== 'post' && $post->post_type !== 'page') {
+            return;
+        }
+
+        // Already has featured image?
+        if (has_post_thumbnail($post->ID)) {
+            return;
+        }
+
+        // Build prompt (can be filtered by dev)
+        $prompt = apply_filters('kotacom_ai_auto_hero_prompt', 'High quality hero image for: ' . $post->post_title, $post);
+
+        // Use existing image generator (defaults Unsplash)
+        $img_gen = new KotacomAI_Image_Generator();
+        $result = $img_gen->generate_image($prompt, get_option('kotacom_ai_default_image_size', '1200x800'), true, get_option('kotacom_ai_default_image_provider', 'unsplash'), true);
+
+        if (!$result['success']) {
+            KotacomAI_Logger::add('auto_hero_fail', 0, $post->ID, $result['error']);
+            return;
+        }
+
+        // Attach image to media library & set featured
+        if (!empty($result['url'])) {
+            $attachment_id = $img_gen->set_featured_image($post->ID, $result['url'], $result['alt']);
+            if ($attachment_id) {
+                set_post_thumbnail($post->ID, $attachment_id);
+                KotacomAI_Logger::add('auto_hero_success', 1, $post->ID, 'Hero image set');
+            }
+        }
     }
     
     /**
