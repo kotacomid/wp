@@ -490,6 +490,32 @@ if (empty($existing_templates)) {
                     </div>
                 </div>
             </div>
+
+            <!-- Scheduling Options -->
+            <div class="postbox">
+                <h2 class="hndle">⏰ <?php _e('Scheduling Options', 'kotacom-ai'); ?></h2>
+                <div class="inside">
+                    <p><?php _e('Leave blank to publish immediately (or stay as Draft). To schedule bulk posts over time, set a start & end date.', 'kotacom-ai'); ?></p>
+                    <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                        <div>
+                            <label for="schedule-range-start"><strong><?php _e('Start Date/Time', 'kotacom-ai'); ?></strong></label><br>
+                            <input type="datetime-local" id="schedule-range-start" style="min-width:220px;">
+                        </div>
+                        <div>
+                            <label for="schedule-range-end"><strong><?php _e('End Date/Time', 'kotacom-ai'); ?></strong></label><br>
+                            <input type="datetime-local" id="schedule-range-end" style="min-width:220px;">
+                        </div>
+                        <div style="display:flex;flex-direction:column;justify-content:flex-end;">
+                            <label style="margin-top:4px;">
+                                <input type="checkbox" id="random-drip"> <?php _e('Randomise within range', 'kotacom-ai'); ?>
+                            </label>
+                        </div>
+                    </div>
+                    <p class="description" style="margin-top:8px;">
+                        <?php _e('If randomise is unchecked, posts will be evenly distributed between start & end. If checked, each post gets a random timestamp inside the range.', 'kotacom-ai'); ?>
+                    </p>
+                </div>
+            </div>
             
             <!-- Generate Button -->
             <div class="submit-section">
@@ -1133,8 +1159,13 @@ jQuery(document).ready(function($) {
             }
         }
         
+        // Get scheduling options
+        var scheduleStart = $('#schedule-range-start').val();
+        var scheduleEnd = $('#schedule-range-end').val();
+        var randomize = $('#random-drip').is(':checked');
+
         // Show generation summary
-        updateGenerationSummary(keywords, finalLength);
+        updateGenerationSummary(keywords, finalLength, scheduleStart, scheduleEnd, randomize);
         
         // Show loading state
         $btn.prop('disabled', true);
@@ -1158,7 +1189,10 @@ jQuery(document).ready(function($) {
                 post_type: $('#post-type').val(),
                 post_status: $('#post-status').val(),
                 categories: $('#post-categories').val() || [],
-                tags: $('#post-tags').val()
+                tags: $('#post-tags').val(),
+                schedule_start: scheduleStart,
+                schedule_end: scheduleEnd,
+                randomize: randomize
             },
             success: function(response) {
                 displayResults(response);
@@ -1173,7 +1207,7 @@ jQuery(document).ready(function($) {
         });
     }
     
-    function updateGenerationSummary(keywords, length) {
+    function updateGenerationSummary(keywords, length, scheduleStart, scheduleEnd, randomize) {
         const provider = $('#session-provider').val() || 'Global Setting';
         const providerName = provider === 'Global Setting' ? provider : (providerInfo[provider]?.name || provider);
         
@@ -1181,6 +1215,13 @@ jQuery(document).ready(function($) {
         $('#summary-keywords').text(keywords.length + ' keyword(s)');
         $('#summary-cost').text($('#estimated-cost').text() || 'Free');
         $('#generation-summary').show();
+
+        // Display scheduling options in summary if present
+        if (scheduleStart || scheduleEnd) {
+            $('#summary-schedule').text('Scheduled for ' + (scheduleStart ? new Date(scheduleStart).toLocaleDateString() : 'Immediate') + (scheduleEnd ? ' to ' + new Date(scheduleEnd).toLocaleDateString() : '') + (randomize ? ' (randomized)' : ''));
+        } else {
+            $('#summary-schedule').text('Immediate');
+        }
     }
     
     function displayResults(response) {
