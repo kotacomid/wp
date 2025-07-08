@@ -321,6 +321,7 @@ class KotacomAI_Queue_Manager {
                     'post_status' => isset($data['post_status']) ? $data['post_status'] : 'draft',
                     'post_type' => isset($data['post_type']) ? $data['post_type'] : 'post',
                     'post_author' => get_current_user_id() ? get_current_user_id() : 1,
+                    'post_date'  => !empty($data['schedule_date']) ? sanitize_text_field($data['schedule_date']) : current_time('mysql'),
                     'meta_input' => array(
                         'kotacom_ai_generated' => true,
                         'kotacom_ai_keyword' => $keyword,
