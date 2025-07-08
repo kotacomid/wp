@@ -61,7 +61,8 @@ if (!defined('ABSPATH')) {
                         <td>
                             <select class="prov-name" name="prov_name">
                                 <?php foreach($providers_list as $key=>$prov): ?>
-                                    <option value="<?php echo esc_attr($key); ?>" data-models='<?php echo esc_attr(json_encode($api_handler->get_provider_models($key))); ?>'><?php echo esc_html($prov['name']); ?></option>
+                                    <?php $models_json = esc_attr(json_encode($api_handler->get_provider_models($key) ?: new stdClass())); ?>
+                                    <option value="<?php echo esc_attr($key); ?>" data-models="<?php echo $models_json; ?>"><?php echo esc_html($prov['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </td>
@@ -101,7 +102,11 @@ if (!defined('ABSPATH')) {
         let list={};
         try{list=JSON.parse(models);}catch(e){list={};}
         const modelSel=$row.find('.prov-model').empty();
-        $.each(list,function(k,v){ modelSel.append('<option value="'+k+'">'+v+'</option>'); });
+        if($.isEmptyObject(list)){
+            modelSel.append('<option value="">'+aiStrings.noModels+'</option>');
+        }else{
+            $.each(list,function(k,v){ modelSel.append('<option value="'+k+'">'+v+'</option>'); });
+        }
         if($row.data('selectedModel')){
             modelSel.val($row.data('selectedModel'));
         }
@@ -146,6 +151,8 @@ if (!defined('ABSPATH')) {
         });
     });
 })(jQuery);
+
+var aiStrings = { noModels: '<?php echo esc_js(__('No models available','kotacom-ai')); ?>' };
 </script>
 
 
