@@ -26,9 +26,10 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
         
         <!-- Queue Debug Section -->
         <div style="margin-top: 15px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 5px;">
-            <h4 style="margin: 0 0 10px 0;"><?php _e('🔧 Queue Debug', 'kotacom-ai'); ?></h4>
+            <h4 style="margin: 0 0 10px 0;"><?php _e('🔧 Queue Debug & Cache Fix', 'kotacom-ai'); ?></h4>
             <button type="button" id="check-queue-status" class="button"><?php _e('Check Queue Status', 'kotacom-ai'); ?></button>
             <button type="button" id="process-queue-manually" class="button button-secondary"><?php _e('Process Queue Now', 'kotacom-ai'); ?></button>
+            <button type="button" id="clear-failed-queue" class="button button-primary" style="background: #dc3232;"><?php _e('Clear Failed Items', 'kotacom-ai'); ?></button>
             <div id="queue-status-display" style="margin-top: 10px; font-family: monospace; font-size: 12px; background: white; padding: 10px; border-radius: 3px; max-height: 200px; overflow-y: auto; display: none;"></div>
         </div>
     </div>
@@ -596,6 +597,45 @@ jQuery(document).ready(function($) {
             },
             complete: function() {
                 $btn.prop('disabled', false).text('Process Queue Now');
+            }
+        });
+    });
+    
+    $('#clear-failed-queue').on('click', function() {
+        var $btn = $(this);
+        var $display = $('#queue-status-display');
+        
+        if (!confirm('Are you sure you want to clear all failed and stuck items from the queue? This will help fix the fatal error issue.')) {
+            return;
+        }
+        
+        $btn.prop('disabled', true).text('Clearing...');
+        
+        $.ajax({
+            url: kotacomAI.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'kotacom_clear_failed_queue',
+                nonce: kotacomAI.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    var html = '<span style="color: green; font-weight: bold;">' + response.data.message + '</span><br><br>';
+                    html += '<strong>Cleanup Results:</strong><br>';
+                    html += 'Removed: ' + response.data.removed_count + ' problematic items<br>';
+                    html += 'Remaining: ' + response.data.remaining_count + ' items<br><br>';
+                    html += '<em>You can now try bulk generation again. The fatal error should be resolved.</em>';
+                    
+                    $display.html(html).show();
+                } else {
+                    $display.html('<span style="color: red;">Error: ' + response.data.message + '</span>').show();
+                }
+            },
+            error: function() {
+                $display.html('<span style="color: red;">AJAX Error occurred</span>').show();
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Clear Failed Items');
             }
         });
     });

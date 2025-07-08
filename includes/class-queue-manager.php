@@ -269,92 +269,111 @@ class KotacomAI_Queue_Manager {
     }
     
     /**
-     * Process content generation
+     * Process content generation - FIXED VERSION 2.0
      */
     private function process_content_generation($data) {
+        // Force clear any cached Content Generator calls
+        $keyword = '';
+        $prompt = '';
+        $params = array();
+        
         try {
-            // Extract data
-            $keyword = $data['keyword'] ?? '';
-            $prompt = $data['prompt'] ?? '';
-            $params = $data['params'] ?? array();
+            // Extract and validate data
+            $keyword = isset($data['keyword']) ? sanitize_text_field($data['keyword']) : '';
+            $prompt = isset($data['prompt']) ? $data['prompt'] : '';
+            $params = isset($data['params']) && is_array($data['params']) ? $data['params'] : array();
             
-            if (empty($keyword) || empty($prompt)) {
-                throw new Exception('Missing keyword or prompt in queue data');
+            if (empty($keyword)) {
+                throw new Exception('Missing keyword in queue data');
             }
             
-            // Replace {keyword} in prompt
+            if (empty($prompt)) {
+                throw new Exception('Missing prompt in queue data');
+            }
+            
+            // Replace {keyword} placeholder in prompt
             $final_prompt = str_replace('{keyword}', $keyword, $prompt);
             
-            // Use API handler directly for queue processing
+            // IMPORTANT: Use API handler directly - NOT Content Generator
             $api_handler = new KotacomAI_API_Handler();
-            $result = $api_handler->generate_content($final_prompt, $params);
+            $api_result = $api_handler->generate_content($final_prompt, $params);
             
-            if (!$result['success']) {
-                throw new Exception($result['error'] ?? 'Content generation failed');
+            if (!$api_result || !isset($api_result['success']) || !$api_result['success']) {
+                $error_msg = isset($api_result['error']) ? $api_result['error'] : 'API call failed';
+                throw new Exception('Content generation failed: ' . $error_msg);
             }
             
-            $generated_content = $result['content'];
+            $generated_content = $api_result['content'];
             
-            // Create post if specified
+            if (empty($generated_content)) {
+                throw new Exception('Generated content is empty');
+            }
+            
+            // Create WordPress post if specified
             if (isset($data['create_post']) && $data['create_post']) {
-                // Generate title from keyword or content
-                $title = $this->generate_post_title($keyword, $generated_content);
+                // Generate post title
+                $post_title = $this->generate_post_title($keyword, $generated_content);
                 
+                // Prepare post data
                 $post_data = array(
-                    'post_title' => $title,
+                    'post_title' => $post_title,
                     'post_content' => $generated_content,
-                    'post_status' => $data['post_status'] ?? 'draft',
-                    'post_type' => $data['post_type'] ?? 'post',
-                    'post_author' => get_current_user_id() ?: 1,
+                    'post_status' => isset($data['post_status']) ? $data['post_status'] : 'draft',
+                    'post_type' => isset($data['post_type']) ? $data['post_type'] : 'post',
+                    'post_author' => get_current_user_id() ? get_current_user_id() : 1,
                     'meta_input' => array(
                         'kotacom_ai_generated' => true,
                         'kotacom_ai_keyword' => $keyword,
                         'kotacom_ai_generated_at' => current_time('mysql'),
-                        'kotacom_ai_provider_used' => get_option('kotacom_ai_api_provider'),
-                        'kotacom_ai_batch_id' => $data['batch_id'] ?? ''
+                        'kotacom_ai_provider_used' => get_option('kotacom_ai_api_provider', 'unknown'),
+                        'kotacom_ai_batch_id' => isset($data['batch_id']) ? $data['batch_id'] : ''
                     )
                 );
                 
-                // Add categories
-                if (!empty($data['categories'])) {
+                // Add categories if provided
+                if (!empty($data['categories']) && is_array($data['categories'])) {
                     $post_data['post_category'] = array_map('intval', $data['categories']);
                 }
                 
+                // Insert the post
                 $post_id = wp_insert_post($post_data);
                 
-                if ($post_id && !is_wp_error($post_id)) {
-                    // Add tags
-                    if (!empty($data['tags'])) {
-                        wp_set_post_tags($post_id, explode(',', $data['tags']));
-                    }
-                    
-                    // Generate featured image if enabled
-                    if (get_option('kotacom_ai_auto_featured_image', false)) {
-                        $this->add_single_item_to_queue('generate_image', array(
-                            'post_id' => $post_id,
-                            'prompt' => "Featured image for: " . $keyword,
-                            'featured' => true
-                        ), 5);
-                    }
-                    
-                    // Log successful creation
-                    if (class_exists('KotacomAI_Logger')) {
-                        KotacomAI_Logger::add('queue_generate', 1, $post_id, "Generated content for: {$keyword}");
-                    }
-                    
-                    return $post_id;
-                } else {
-                    throw new Exception('Failed to create WordPress post');
+                if (!$post_id || is_wp_error($post_id)) {
+                    throw new Exception('Failed to create WordPress post: ' . (is_wp_error($post_id) ? $post_id->get_error_message() : 'Unknown error'));
                 }
+                
+                // Add tags if provided
+                if (!empty($data['tags'])) {
+                    $tags = is_array($data['tags']) ? $data['tags'] : explode(',', $data['tags']);
+                    wp_set_post_tags($post_id, $tags);
+                }
+                
+                // Log successful creation
+                if (class_exists('KotacomAI_Logger')) {
+                    KotacomAI_Logger::add('queue_generate_success', 1, $post_id, "Successfully generated content for keyword: {$keyword}");
+                }
+                
+                return $post_id;
             }
             
+            // If not creating post, just return success
             return true;
             
         } catch (Exception $e) {
+            // Log the error with detailed information
             if (class_exists('KotacomAI_Logger')) {
-                KotacomAI_Logger::add('queue_generate_error', 0, null, "Failed to generate content for {$keyword}: " . $e->getMessage());
+                KotacomAI_Logger::add('queue_generate_error', 0, null, "QUEUE ERROR for keyword '{$keyword}': " . $e->getMessage());
             }
+            
+            // Re-throw the exception to mark queue item as failed
             throw $e;
+        } catch (Error $e) {
+            // Log fatal errors too
+            if (class_exists('KotacomAI_Logger')) {
+                KotacomAI_Logger::add('queue_generate_fatal', 0, null, "FATAL ERROR for keyword '{$keyword}': " . $e->getMessage());
+            }
+            
+            throw new Exception('Fatal error during content generation: ' . $e->getMessage());
         }
     }
     

@@ -225,6 +225,7 @@ class KotacomAI {
         // Queue management
         add_action('wp_ajax_kotacom_process_queue_manually', array($this, 'ajax_process_queue_manually'));
         add_action('wp_ajax_kotacom_get_queue_debug', array($this, 'ajax_get_queue_debug'));
+        add_action('wp_ajax_kotacom_clear_failed_queue', array($this, 'ajax_clear_failed_queue'));
     }
     
     /**
@@ -1493,6 +1494,43 @@ class KotacomAI {
             
         } catch (Exception $e) {
             wp_send_json_error(array('message' => __('Error getting debug info: ', 'kotacom-ai') . $e->getMessage()));
+        }
+    }
+    
+    /**
+     * Clear failed/problematic queue items
+     */
+    public function ajax_clear_failed_queue() {
+        try {
+            check_ajax_referer('kotacom_ai_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+            }
+            
+            $queue = get_option('kotacom_ai_queue', array());
+            $original_count = count($queue);
+            
+            // Remove failed and stuck processing items
+            $queue = array_filter($queue, function($item) {
+                return !in_array($item['status'], array('failed', 'processing'));
+            });
+            
+            // Re-index array
+            $queue = array_values($queue);
+            
+            update_option('kotacom_ai_queue', $queue);
+            
+            $removed_count = $original_count - count($queue);
+            
+            wp_send_json_success(array(
+                'message' => sprintf(__('Cleared %d problematic queue items', 'kotacom-ai'), $removed_count),
+                'removed_count' => $removed_count,
+                'remaining_count' => count($queue)
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => __('Error clearing queue: ', 'kotacom-ai') . $e->getMessage()));
         }
     }
 }
