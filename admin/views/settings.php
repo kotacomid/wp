@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
         </div>
     </div>
     
-    <form method="post" action="options.php">
+    <form method="post" action="options.php" id="kotacom-ai-settings-form">
         <?php
         settings_fields('kotacom_ai_settings');
         do_settings_sections('kotacom_ai_settings');
@@ -127,7 +127,7 @@ if (!defined('ABSPATH')) {
         // Sortable
         $('.sortable-body').sortable({ handle:'.handle' });
         // On form submit serialize table to hidden input
-        $('#post').on('submit',function(){
+        $('#kotacom-ai-settings-form').on('submit',function(){
             const arr=[];
             $('#ai-provider-table .provider-row').each(function(){
                 arr.push({
