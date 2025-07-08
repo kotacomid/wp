@@ -586,6 +586,11 @@ class KotacomAI_Admin {
         // Add help information
         $this->add_content_refresh_help_info();
         
+        // Provider selector variables
+        $api_handler = new KotacomAI_API_Handler();
+        $providers = $api_handler->get_providers();
+        $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
+
         // Enhanced post query with pagination support
         $posts_per_page = isset($_GET['posts_per_page']) ? max(10, min(200, intval($_GET['posts_per_page']))) : 25;
         $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
@@ -742,6 +747,45 @@ class KotacomAI_Admin {
                         <button type="button" id="apply-filters" class="button button-secondary"><?php _e('Apply Filters', 'kotacom-ai'); ?></button>
                     </div>
                 </div>
+            </div>
+            
+            <!-- AI Provider Selection (optional override) -->
+            <div class="postbox">
+                <h3 class="hndle" style="padding:10px 15px;">
+                    <?php _e('⚙️ AI Provider Selection (Optional Override)', 'kotacom-ai'); ?>
+                </h3>
+                <div class="inside" style="padding:15px;">
+                    <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+                        <div>
+                            <label for="session-provider"><strong><?php _e('Provider:', 'kotacom-ai'); ?></strong></label>
+                            <select id="session-provider" name="session_provider" style="min-width:200px;">
+                                <option value=""><?php _e('Use Global Setting', 'kotacom-ai'); ?> (<?php echo esc_html($providers[$current_global_provider]['name'] ?? 'N/A'); ?>)</option>
+                                <?php foreach ($providers as $key => $provider): ?>
+                                    <option value="<?php echo esc_attr($key); ?>" data-models="<?php echo esc_attr(json_encode($api_handler->get_provider_models($key))); ?>">
+                                        <?php echo esc_html($provider['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div id="model-select-wrapper" style="display:none;">
+                            <label for="session-model"><strong><?php _e('Model:', 'kotacom-ai'); ?></strong></label>
+                            <select id="session-model" name="session_model" style="min-width:180px;"></select>
+                        </div>
+                        <button type="button" id="test-provider-connection" class="button button-secondary" style="display:none;">
+                            <?php _e('Test Connection', 'kotacom-ai'); ?>
+                        </button>
+                    </div>
+                    <p class="description" style="margin-top:8px;"><?php _e('If selected, this provider/model will be used for the refresh operation instead of the global default.', 'kotacom-ai'); ?></p>
+                </div>
+            </div>
+
+            <!-- Queue Debug & Logs Panel -->
+            <div style="margin: 20px 0; padding: 10px; background:#f9f9f9;border:1px solid #ddd;border-radius:5px;">
+                <h4 style="margin:0 0 10px 0;"><?php _e('🔧 Queue Debug & Logs', 'kotacom-ai'); ?></h4>
+                <button type="button" id="check-queue-status" class="button"><?php _e('Check Queue Status', 'kotacom-ai'); ?></button>
+                <button type="button" id="process-queue-manually" class="button button-secondary"><?php _e('Process Queue Now', 'kotacom-ai'); ?></button>
+                <button type="button" id="clear-failed-queue" class="button button-primary" style="background:#dc3232;"><?php _e('Clear Failed Items', 'kotacom-ai'); ?></button>
+                <div id="queue-status-display" style="margin-top:10px;font-family:monospace;font-size:12px;background:white;padding:10px;border-radius:3px;max-height:200px;overflow-y:auto;display:none;"></div>
             </div>
             
             <!-- Template and Prompt Selection -->
@@ -958,6 +1002,47 @@ class KotacomAI_Admin {
 
                 processBatch(0);
             });
+
+            // Provider info registry (simple)
+            const providerInfo = <?php echo json_encode($providers); ?>;
+
+            // Populate models when provider changes
+            $('#session-provider').on('change', function(){
+                const key = $(this).val();
+                if(!key){ $('#model-select-wrapper').hide(); return; }
+                const modelsData = $(this).find('option:selected').data('models');
+                let models = {};
+                try { models = JSON.parse(modelsData); }catch(e){ models = {}; }
+                const $modelSel = $('#session-model');
+                $modelSel.empty();
+                $.each(models, function(k,v){ $modelSel.append('<option value="'+k+'">'+v+'</option>'); });
+                $('#model-select-wrapper').toggle(Object.keys(models).length>0);
+                $('#test-provider-connection').show();
+            });
+
+            // Test connection
+            $('#test-provider-connection').on('click', function(){
+                const provider = $('#session-provider').val();
+                if(!provider) return;
+                const $btn=$(this).prop('disabled',true).text('...');
+                $.post(ajaxurl,{action:'kotacom_test_provider_connection',nonce:'<?php echo esc_js($nonce); ?>',provider:provider},function(res){
+                    alert(res.success? '✔ OK':'✖ '+res.data.message);
+                }).always(function(){ $btn.prop('disabled',false).text('<?php echo esc_js(__('Test Connection','kotacom-ai')); ?>'); });
+            });
+
+            // Queue debug (reuse existing JS from generator page)
+            $('#check-queue-status').on('click', function(){
+                var $btn=$(this),$display=$('#queue-status-display');
+                $btn.prop('disabled',true).text('...');
+                $.post(ajaxurl,{action:'kotacom_get_queue_debug',nonce:'<?php echo esc_js($nonce); ?>'},function(res){
+                    if(res.success){ $display.text(JSON.stringify(res.data,null,2)); } else { $display.text(res.data.message); }
+                    $display.show();
+                }).always(()=>{$btn.prop('disabled',false).text('<?php echo esc_js(__('Check Queue Status','kotacom-ai')); ?>');});
+            });
+            $('#process-queue-manually').on('click', function(){
+                $.post(ajaxurl,{action:'kotacom_process_queue_manually',nonce:'<?php echo esc_js($nonce); ?>'},function(res){ alert(res.success? res.data.message: res.data.message); });
+            });
+            $('#clear-failed-queue').on('click', function(){ if(!confirm('Clear failed items?')) return; $.post(ajaxurl,{action:'kotacom_clear_failed_queue',nonce:'<?php echo esc_js($nonce); ?>'},function(res){ alert(res.success? res.data.message: res.data.message); }); });
         });
         </script>
         <?php
