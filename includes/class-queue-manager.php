@@ -77,8 +77,9 @@ class KotacomAI_Queue_Manager {
     public function add_to_queue($keywords_or_action, $prompt_template = null, $parameters = null, $post_settings = null, $priority = 10, $delay = 0) {
         // New signature: add_to_queue($action, $data, $priority, $delay)
         if ($prompt_template === null && is_string($keywords_or_action)) {
-            // This is the new queue manager signature
-            return $this->add_single_item_to_queue($keywords_or_action, $prompt_template, $parameters, $post_settings);
+            // This is the new queue manager signature where:
+            // $keywords_or_action = action, $parameters = data, $post_settings = priority, $priority = delay
+            return $this->add_single_item_to_queue($keywords_or_action, $parameters, $post_settings ?: 10, $priority ?: 0);
         }
         
         // Old signature: add_to_queue($keywords, $prompt_template, $parameters, $post_settings) 
@@ -130,7 +131,7 @@ class KotacomAI_Queue_Manager {
     /**
      * Add single item to queue (internal method)
      */
-    private function add_single_item_to_queue($action, $data, $priority = 10, $delay = 0) {
+    public function add_single_item_to_queue($action, $data, $priority = 10, $delay = 0) {
         $queue = get_option($this->queue_option, array());
         
         $item = array(
@@ -157,7 +158,9 @@ class KotacomAI_Queue_Manager {
         
         update_option($this->queue_option, $queue);
         
-        KotacomAI_Logger::log('queue_add', "Added item to queue: {$action}", null, true);
+                    if (class_exists('KotacomAI_Logger')) {
+                KotacomAI_Logger::add('queue_add', 1, null, "Added item to queue: {$action}");
+            }
         
         return $item['id'];
     }
@@ -197,7 +200,9 @@ class KotacomAI_Queue_Manager {
                 if ($result) {
                     $queue[$key]['status'] = 'completed';
                     $queue[$key]['completed_at'] = current_time('mysql');
-                    KotacomAI_Logger::log('queue_process', "Completed: {$item['action']}", $item['data']['post_id'] ?? null, true);
+                    if (class_exists('KotacomAI_Logger')) {
+                    KotacomAI_Logger::add('queue_process', 1, $item['data']['post_id'] ?? null, "Completed: {$item['action']}");
+                }
                 } else {
                     throw new Exception('Processing returned false');
                 }
@@ -209,13 +214,17 @@ class KotacomAI_Queue_Manager {
                 if ($queue[$key]['attempts'] >= $this->max_attempts) {
                     $queue[$key]['status'] = 'failed';
                     $queue[$key]['failed_at'] = current_time('mysql');
-                    KotacomAI_Logger::log('queue_failed', "Failed after {$this->max_attempts} attempts: {$item['action']} - {$e->getMessage()}", $item['data']['post_id'] ?? null, false);
+                    if (class_exists('KotacomAI_Logger')) {
+                    KotacomAI_Logger::add('queue_failed', 0, $item['data']['post_id'] ?? null, "Failed after {$this->max_attempts} attempts: {$item['action']} - {$e->getMessage()}");
+                }
                 } else {
                     $queue[$key]['status'] = 'retry';
                     // Exponential backoff: wait 2^attempts minutes
                     $delay = pow(2, $queue[$key]['attempts']) * 60;
                     $queue[$key]['scheduled_at'] = date('Y-m-d H:i:s', current_time('timestamp') + $delay);
-                    KotacomAI_Logger::log('queue_retry', "Retry #{$queue[$key]['attempts']}: {$item['action']} - {$e->getMessage()}", $item['data']['post_id'] ?? null, false);
+                    if (class_exists('KotacomAI_Logger')) {
+                        KotacomAI_Logger::add('queue_retry', 0, $item['data']['post_id'] ?? null, "Retry #{$queue[$key]['attempts']}: {$item['action']} - {$e->getMessage()}");
+                    }
                 }
             }
             
@@ -228,7 +237,9 @@ class KotacomAI_Queue_Manager {
         }
         
         if ($processed > 0) {
-            KotacomAI_Logger::log('queue_batch', "Processed {$processed} items", null, true);
+            if (class_exists('KotacomAI_Logger')) {
+            KotacomAI_Logger::add('queue_batch', 1, null, "Processed {$processed} items");
+        }
         }
     }
     
@@ -367,7 +378,9 @@ class KotacomAI_Queue_Manager {
             $updated = wp_update_post($update_data);
             
             if ($updated && !is_wp_error($updated)) {
-                KotacomAI_Logger::log('refresh', 1, $post_id, 'Queue refresh successful');
+                if (class_exists('KotacomAI_Logger')) {
+                KotacomAI_Logger::add('refresh', 1, $post_id, 'Queue refresh successful');
+            }
                 return true;
             } else {
                 throw new Exception('Failed to update post content');
@@ -454,7 +467,9 @@ class KotacomAI_Queue_Manager {
                 
                 update_option($this->queue_option, $queue);
                 
-                KotacomAI_Logger::log('queue_retry_manual', "Manually retried: {$item['action']}", null, true);
+                if (class_exists('KotacomAI_Logger')) {
+                KotacomAI_Logger::add('queue_retry_manual', 1, null, "Manually retried: {$item['action']}");
+            }
                 return true;
             }
         }
@@ -490,7 +505,9 @@ class KotacomAI_Queue_Manager {
         
         $cleaned = $original_count - count($queue);
         if ($cleaned > 0) {
-            KotacomAI_Logger::log('queue_cleanup', "Cleaned {$cleaned} old queue items", null, true);
+            if (class_exists('KotacomAI_Logger')) {
+            KotacomAI_Logger::add('queue_cleanup', 1, null, "Cleaned {$cleaned} old queue items");
+        }
         }
     }
     
@@ -499,7 +516,9 @@ class KotacomAI_Queue_Manager {
      */
     public function clear_all_queue() {
         delete_option($this->queue_option);
-        KotacomAI_Logger::log('queue_clear', "Cleared all queue items", null, true);
+        if (class_exists('KotacomAI_Logger')) {
+            KotacomAI_Logger::add('queue_clear', 1, null, "Cleared all queue items");
+        }
     }
     
     /**
@@ -569,7 +588,9 @@ class KotacomAI_Queue_Manager {
      */
     public function start_batch_processing($batch_id) {
         // The queue automatically processes items, so this is mainly for logging
-        KotacomAI_Logger::log('batch_start', "Started batch processing: {$batch_id}", null, true);
+        if (class_exists('KotacomAI_Logger')) {
+            KotacomAI_Logger::add('batch_start', 1, null, "Started batch processing: {$batch_id}");
+        }
         
         // Update batch status
         $batches = get_option('kotacom_ai_batches', array());

@@ -678,51 +678,63 @@ class KotacomAI {
     
     // AJAX Handlers for Content Generation - Enhanced
     public function ajax_generate_content() {
-        check_ajax_referer('kotacom_ai_nonce', 'nonce');
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
-        }
-        
-        $keywords = isset($_POST['keywords']) && is_array($_POST['keywords']) ? array_map('sanitize_text_field', $_POST['keywords']) : array();
-        $prompt_template = sanitize_textarea_field($_POST['prompt_template'] ?? '');
-        
-        if (empty($keywords) || empty($prompt_template)) {
-            wp_send_json_error(array('message' => __('Keywords and prompt template are required', 'kotacom-ai')));
-        }
-        
-        $parameters = array(
-            'tone' => sanitize_text_field($_POST['tone'] ?? 'informative'),
-            'length' => sanitize_text_field($_POST['length'] ?? '500'),
-            'audience' => sanitize_text_field($_POST['audience'] ?? 'general'),
-            'niche' => sanitize_text_field($_POST['niche'] ?? '')
-        );
-        
-        $categories = isset($_POST['categories']) && is_array($_POST['categories']) ? array_map('intval', $_POST['categories']) : array();
-        
-        $post_settings = array(
-            'post_type' => sanitize_text_field($_POST['post_type'] ?? 'post'),
-            'post_status' => sanitize_text_field($_POST['post_status'] ?? 'draft'),
-            'categories' => $categories,
-            'tags' => sanitize_text_field($_POST['tags'] ?? '')
-        );
-        
-        // Handle provider override
-        $provider_override = array();
-        if (!empty($_POST['session_provider'])) {
-            $provider_override['provider'] = sanitize_text_field($_POST['session_provider']);
+        try {
+            check_ajax_referer('kotacom_ai_nonce', 'nonce');
             
-            if (!empty($_POST['session_model'])) {
-                $provider_override['model'] = sanitize_text_field($_POST['session_model']);
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
             }
-        }
-        
-        $result = $this->content_generator->generate_content($keywords, $prompt_template, $parameters, $post_settings, $provider_override);
-        
-        if ($result['success']) {
-            wp_send_json_success($result);
-        } else {
-            wp_send_json_error($result);
+            
+            $keywords = isset($_POST['keywords']) && is_array($_POST['keywords']) ? array_map('sanitize_text_field', $_POST['keywords']) : array();
+            $prompt_template = sanitize_textarea_field($_POST['prompt_template'] ?? '');
+            
+            if (empty($keywords) || empty($prompt_template)) {
+                wp_send_json_error(array('message' => __('Keywords and prompt template are required', 'kotacom-ai')));
+            }
+            
+            $parameters = array(
+                'tone' => sanitize_text_field($_POST['tone'] ?? 'informative'),
+                'length' => sanitize_text_field($_POST['length'] ?? '500'),
+                'audience' => sanitize_text_field($_POST['audience'] ?? 'general'),
+                'niche' => sanitize_text_field($_POST['niche'] ?? '')
+            );
+            
+            $categories = isset($_POST['categories']) && is_array($_POST['categories']) ? array_map('intval', $_POST['categories']) : array();
+            
+            $post_settings = array(
+                'post_type' => sanitize_text_field($_POST['post_type'] ?? 'post'),
+                'post_status' => sanitize_text_field($_POST['post_status'] ?? 'draft'),
+                'categories' => $categories,
+                'tags' => sanitize_text_field($_POST['tags'] ?? '')
+            );
+            
+            // Handle provider override
+            $provider_override = array();
+            if (!empty($_POST['session_provider'])) {
+                $provider_override['provider'] = sanitize_text_field($_POST['session_provider']);
+                
+                if (!empty($_POST['session_model'])) {
+                    $provider_override['model'] = sanitize_text_field($_POST['session_model']);
+                }
+            }
+            
+            // Ensure content generator is initialized
+            if (!$this->content_generator) {
+                wp_send_json_error(array('message' => __('Content generator not initialized', 'kotacom-ai')));
+            }
+            
+            $result = $this->content_generator->generate_content($keywords, $prompt_template, $parameters, $post_settings, $provider_override);
+            
+            if ($result && is_array($result) && isset($result['success']) && $result['success']) {
+                wp_send_json_success($result);
+            } else {
+                wp_send_json_error($result ?: array('message' => __('Unknown error occurred', 'kotacom-ai')));
+            }
+            
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => __('Server error: ', 'kotacom-ai') . $e->getMessage()));
+        } catch (Error $e) {
+            wp_send_json_error(array('message' => __('Fatal error: ', 'kotacom-ai') . $e->getMessage()));
         }
     }
     
@@ -1047,29 +1059,39 @@ class KotacomAI {
      * Supports both single and bulk generation with templates
      */
     public function ajax_generate_content_enhanced() {
-        check_ajax_referer('kotacom_ai_nonce', 'nonce');
-        
-        if (!current_user_can('edit_posts')) {
-            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
-        }
-        
-        // Get and validate inputs
-        $keywords = isset($_POST['keywords']) && is_array($_POST['keywords']) ? array_map('sanitize_text_field', $_POST['keywords']) : array();
-        $template_id = intval($_POST['template_id'] ?? 0);
-        
-        if (empty($keywords)) {
-            wp_send_json_error(array('message' => __('Keywords are required', 'kotacom-ai')));
-        }
-        
-        if (empty($template_id)) {
-            wp_send_json_error(array('message' => __('Template is required', 'kotacom-ai')));
-        }
-        
-        // Get template content
-        $template_post = get_post($template_id);
-        if (!$template_post || $template_post->post_type !== 'kotacom_template') {
-            wp_send_json_error(array('message' => __('Invalid template', 'kotacom-ai')));
-        }
+        try {
+            check_ajax_referer('kotacom_ai_nonce', 'nonce');
+            
+            if (!current_user_can('edit_posts')) {
+                wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+            }
+            
+            // Get and validate inputs
+            $keywords = isset($_POST['keywords']) && is_array($_POST['keywords']) ? array_map('sanitize_text_field', $_POST['keywords']) : array();
+            $template_id = intval($_POST['template_id'] ?? 0);
+            
+            if (empty($keywords)) {
+                wp_send_json_error(array('message' => __('Keywords are required', 'kotacom-ai')));
+            }
+            
+            if (empty($template_id)) {
+                wp_send_json_error(array('message' => __('Template is required', 'kotacom-ai')));
+            }
+            
+            // Get template content
+            $template_post = get_post($template_id);
+            if (!$template_post || $template_post->post_type !== 'kotacom_template') {
+                wp_send_json_error(array('message' => __('Invalid template', 'kotacom-ai')));
+            }
+            
+            // Ensure required components are initialized
+            if (!$this->queue_manager) {
+                wp_send_json_error(array('message' => __('Queue manager not initialized', 'kotacom-ai')));
+            }
+            
+            if (!$this->api_handler) {
+                wp_send_json_error(array('message' => __('API handler not initialized', 'kotacom-ai')));
+            }
         
         $template_content = $template_post->post_content;
         
@@ -1109,18 +1131,24 @@ class KotacomAI {
             // Bulk generation - use queue system
             $batch_id = 'batch_' . time() . '_' . wp_generate_password(8, false);
             
-            // Create batch record
-            $this->database->create_batch($batch_id, count($keywords));
-            
             foreach ($keywords as $keyword) {
                 // Create AI prompt by replacing template placeholders
                 $ai_prompt = $this->create_ai_prompt_from_template($template_content, $keyword, $parameters);
                 
-                // Add to queue
-                $queue_item_id = $this->database->add_to_queue($keyword, $ai_prompt, $parameters, $post_settings);
+                // Add to queue using queue manager
+                $queue_item_id = $this->queue_manager->add_single_item_to_queue('generate_content', array(
+                    'keyword' => $keyword,
+                    'prompt' => $ai_prompt,
+                    'params' => $parameters,
+                    'create_post' => true,
+                    'post_status' => $post_settings['post_status'] ?? 'draft',
+                    'post_type' => $post_settings['post_type'] ?? 'post',
+                    'categories' => $post_settings['categories'] ?? array(),
+                    'tags' => $post_settings['tags'] ?? '',
+                    'batch_id' => $batch_id
+                ), 10);
                 
                 if ($queue_item_id) {
-                    $this->database->update_queue_batch_id($queue_item_id, $batch_id);
                     $results[] = array(
                         'keyword' => $keyword,
                         'status' => 'queued',
@@ -1205,6 +1233,12 @@ class KotacomAI {
                 wp_send_json_error(array('message' => $generation_result['error']));
             }
         }
+        
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => __('Server error: ', 'kotacom-ai') . $e->getMessage()));
+        } catch (Error $e) {
+            wp_send_json_error(array('message' => __('Fatal error: ', 'kotacom-ai') . $e->getMessage()));
+        }
     }
     
     /**
@@ -1237,11 +1271,12 @@ class KotacomAI {
      * Prompt can contain placeholders {current_content} and {title}
      */
     public function ajax_refresh_posts() {
-        check_ajax_referer('kotacom_ai_nonce', 'nonce');
+        try {
+            check_ajax_referer('kotacom_ai_nonce', 'nonce');
 
-        if (!current_user_can('edit_posts')) {
-            wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
-        }
+            if (!current_user_can('edit_posts')) {
+                wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+            }
 
         $post_ids       = isset($_POST['post_ids']) && is_array($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : array();
         $refresh_prompt = sanitize_textarea_field($_POST['refresh_prompt'] ?? '');
@@ -1377,6 +1412,12 @@ class KotacomAI {
             } else {
                 wp_send_json_error(array('message' => __('Failed to update post', 'kotacom-ai')));
             }
+        }
+        
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => __('Server error: ', 'kotacom-ai') . $e->getMessage()));
+        } catch (Error $e) {
+            wp_send_json_error(array('message' => __('Fatal error: ', 'kotacom-ai') . $e->getMessage()));
         }
     }
 }
