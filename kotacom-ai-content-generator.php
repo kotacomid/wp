@@ -695,6 +695,7 @@ class KotacomAI {
             $keywords = isset($_POST['keywords']) && is_array($_POST['keywords']) ? array_map('sanitize_text_field', $_POST['keywords']) : array();
             $prompt_template = sanitize_textarea_field($_POST['prompt_template'] ?? '');
             $post_template = sanitize_textarea_field($_POST['post_template'] ?? '');
+            $schedule_dates = isset($_POST['schedule_dates']) && is_array($_POST['schedule_dates']) ? array_map('sanitize_text_field', $_POST['schedule_dates']) : array();
             
             if (empty($keywords)) {
                 wp_send_json_error(array('message' => __('Keywords are required', 'kotacom-ai')));
@@ -751,7 +752,7 @@ class KotacomAI {
                 // Bulk generation - use queue system
                 $batch_id = 'batch_' . time() . '_' . wp_generate_password(8, false);
                 
-                foreach ($keywords as $keyword) {
+                foreach ($keywords as $index => $keyword) {
                     $final_prompt = '';
                     
                     // Determine which type of template to use
@@ -767,6 +768,12 @@ class KotacomAI {
                         );
                     }
                     
+                    // Determine schedule date for this keyword
+                    $schedule_date = '';
+                    if (!empty($schedule_dates) && isset($schedule_dates[$index])) {
+                        $schedule_date = $schedule_dates[$index];
+                    }
+
                     // Add to queue using queue manager
                     $queue_item_id = $this->queue_manager->add_single_item_to_queue('generate_content', array(
                         'keyword' => $keyword,
@@ -778,7 +785,8 @@ class KotacomAI {
                         'categories' => $post_settings['categories'] ?? array(),
                         'tags' => $post_settings['tags'] ?? '',
                         'batch_id' => $batch_id,
-                        'provider_override' => $provider_override
+                        'provider_override' => $provider_override,
+                        'schedule_date' => $schedule_date
                     ), 10);
                     
                     if ($queue_item_id) {
@@ -820,6 +828,7 @@ class KotacomAI {
             } else {
                 // Single generation - process immediately
                 $keyword = $keywords[0];
+                $schedule_date_single = !empty($schedule_dates) ? sanitize_text_field($schedule_dates[0]) : '';
                 $final_prompt = '';
                 
                 // Determine which type of template to use
@@ -844,10 +853,14 @@ class KotacomAI {
                     $post_data = array(
                         'post_title' => $keyword,
                         'post_content' => $generation_result['content'],
-                        'post_status' => $post_settings['post_status'],
+                        'post_status' => ($schedule_date_single && strtotime($schedule_date_single) > current_time('timestamp')) ? 'future' : $post_settings['post_status'],
                         'post_type' => $post_settings['post_type']
                     );
                     
+                    if ($schedule_date_single) {
+                        $post_data['post_date'] = $schedule_date_single;
+                    }
+
                     $post_id = wp_insert_post($post_data);
                     
                     if ($post_id && !is_wp_error($post_id)) {

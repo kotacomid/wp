@@ -538,6 +538,10 @@ if (empty($existing_templates)) {
                         <span class="summary-label"><?php _e('Estimated Cost:', 'kotacom-ai'); ?></span>
                         <span class="summary-value" id="summary-cost"></span>
                     </div>
+                    <div class="summary-item">
+                        <span class="summary-label"><?php _e('Schedule:', 'kotacom-ai'); ?></span>
+                        <span class="summary-value" id="summary-schedule"></span>
+                    </div>
                 </div>
             </div>
         </form>
@@ -1164,6 +1168,16 @@ jQuery(document).ready(function($) {
         var scheduleEnd = $('#schedule-range-end').val();
         var randomize = $('#random-drip').is(':checked');
 
+        var scheduleDates = [];
+        if(scheduleStart && scheduleEnd){
+            try {
+                scheduleDates = computeScheduleDates(keywords.length, scheduleStart, scheduleEnd, randomize);
+            }catch(e){
+                alert('Scheduling error: '+e.message);
+                return;
+            }
+        }
+        
         // Show generation summary
         updateGenerationSummary(keywords, finalLength, scheduleStart, scheduleEnd, randomize);
         
@@ -1192,7 +1206,8 @@ jQuery(document).ready(function($) {
                 tags: $('#post-tags').val(),
                 schedule_start: scheduleStart,
                 schedule_end: scheduleEnd,
-                randomize: randomize
+                randomize: randomize,
+                schedule_dates: scheduleDates
             },
             success: function(response) {
                 displayResults(response);
@@ -1223,6 +1238,54 @@ jQuery(document).ready(function($) {
             $('#summary-schedule').text('Immediate');
         }
     }
+
+     // Compute per-keyword schedule dates
+     function computeScheduleDates(total, startISO, endISO, randomize){
+         const fixedTimes = ['07:00:00','13:00:00','15:00:00'];
+         const startDate = new Date(startISO);
+         const endDate = new Date(endISO);
+         if(endDate <= startDate) throw new Error('End date must be after start date');
+         const msPerDay = 24*60*60*1000;
+         const numDays = Math.floor((endDate - startDate)/msPerDay)+1;
+         const perDayBase = Math.floor(total/numDays);
+         const remainder = total % numDays;
+         // initialise array of counts per day
+         let counts = new Array(numDays).fill(perDayBase);
+         // distribute remainder randomly among days
+         for(let i=0;i<remainder;i++){
+             const idx = randomize? Math.floor(Math.random()*numDays) : i;
+             counts[idx] += 1;
+         }
+         // create schedule dates
+         let dates=[];
+         let keywordIndex=0;
+         for(let d=0; d<numDays; d++){
+             const dateBase = new Date(startDate.getTime()+ d*msPerDay);
+             const dateStr = dateBase.toISOString().slice(0,10); // YYYY-MM-DD
+             const postsToday = counts[d];
+             // shuffle fixed times if randomize day times? keep order.
+             for(let p=0;p<postsToday;p++){
+                 let timeStr;
+                 if(p<3){
+                     timeStr=fixedTimes[p];
+                 }else{
+                     // random time avoiding duplicates
+                     let h,m;
+                     let safety=0;
+                     do{
+                         h=Math.floor(Math.random()*24);
+                         m=Math.floor(Math.random()*60);
+                         timeStr=(h.toString().padStart(2,'0')+':'+m.toString().padStart(2,'0')+':00');
+                         safety++;
+                     }while(fixedTimes.includes(timeStr.substring(0,5)+':00')&&safety<10);
+                 }
+                 dates.push(dateStr+' '+timeStr);
+                 keywordIndex++;
+                 if(keywordIndex>=total) break;
+             }
+         }
+         return dates;
+     }
     
     function displayResults(response) {
         var html = '';
