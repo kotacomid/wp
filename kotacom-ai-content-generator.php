@@ -154,6 +154,12 @@ class KotacomAI {
 
         // Internal link pass
         add_action('transition_post_status', array($this, 'maybe_add_internal_links'), 20, 3);
+
+        // Schedule daily cron for retro internal-link pass
+        if (!wp_next_scheduled('kotacom_ai_internal_link_cron')) {
+            wp_schedule_event(strtotime('03:00:00'), 'daily', 'kotacom_ai_internal_link_cron');
+        }
+        add_action('kotacom_ai_internal_link_cron', array($this, 'run_internal_link_cron'));
     }
 
     /**
@@ -1902,6 +1908,31 @@ class KotacomAI {
             
         } catch (Exception $e) {
             wp_send_json_error(array('message' => __('Error getting pending items: ', 'kotacom-ai') . $e->getMessage()));
+        }
+    }
+
+    /**
+     * Cron job: retroactively add internal links to older posts
+     */
+    public function run_internal_link_cron(){
+        if(!get_option('kotacom_ai_internal_link_enable')) return;
+        // Process latest 20 posts without meta 'kotacom_ai_linked'
+        $posts = get_posts([
+            'post_type'=>'post',
+            'posts_per_page'=>20,
+            'meta_query'=>[
+                [
+                    'key'=>'kotacom_ai_linked',
+                    'compare'=>'NOT EXISTS'
+                ]
+            ],
+            'orderby'=>'date',
+            'order'=>'DESC'
+        ]);
+        foreach($posts as $p){
+            $before = get_post_meta($p->ID,'kotacom_ai_linked',true);
+            $this->maybe_add_internal_links('publish','publish',$p); // treat as publish
+            update_post_meta($p->ID,'kotacom_ai_linked', current_time('mysql'));
         }
     }
 }
