@@ -226,6 +226,8 @@ class KotacomAI {
         add_action('wp_ajax_kotacom_process_queue_manually', array($this, 'ajax_process_queue_manually'));
         add_action('wp_ajax_kotacom_get_queue_debug', array($this, 'ajax_get_queue_debug'));
         add_action('wp_ajax_kotacom_clear_failed_queue', array($this, 'ajax_clear_failed_queue'));
+        add_action('wp_ajax_kotacom_get_processing_items', array($this, 'ajax_get_processing_items'));
+        add_action('wp_ajax_kotacom_get_pending_items', array($this, 'ajax_get_pending_items'));
     }
     
     /**
@@ -1531,6 +1533,90 @@ class KotacomAI {
             
         } catch (Exception $e) {
             wp_send_json_error(array('message' => __('Error clearing queue: ', 'kotacom-ai') . $e->getMessage()));
+        }
+    }
+    
+    /**
+     * Get currently processing items
+     */
+    public function ajax_get_processing_items() {
+        try {
+            check_ajax_referer('kotacom_ai_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+            }
+            
+            $queue = get_option('kotacom_ai_queue', array());
+            
+            // Filter for processing items
+            $processing_items = array_filter($queue, function($item) {
+                return $item['status'] === 'processing';
+            });
+            
+            // Sort by started_at (most recent first)
+            usort($processing_items, function($a, $b) {
+                $time_a = isset($a['started_at']) ? strtotime($a['started_at']) : 0;
+                $time_b = isset($b['started_at']) ? strtotime($b['started_at']) : 0;
+                return $time_b - $time_a;
+            });
+            
+            wp_send_json_success(array(
+                'items' => $processing_items,
+                'count' => count($processing_items)
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => __('Error getting processing items: ', 'kotacom-ai') . $e->getMessage()));
+        }
+    }
+    
+    /**
+     * Get pending items (next to be processed)
+     */
+    public function ajax_get_pending_items() {
+        try {
+            check_ajax_referer('kotacom_ai_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+            }
+            
+            $limit = intval($_POST['limit'] ?? 10);
+            $queue = get_option('kotacom_ai_queue', array());
+            
+            // Filter for pending items
+            $pending_items = array_filter($queue, function($item) {
+                return $item['status'] === 'pending';
+            });
+            
+            // Sort by priority (higher first) then by created_at (older first)
+            usort($pending_items, function($a, $b) {
+                // First sort by priority (higher priority first)
+                $priority_diff = ($b['priority'] ?? 10) - ($a['priority'] ?? 10);
+                if ($priority_diff !== 0) {
+                    return $priority_diff;
+                }
+                
+                // Then by created_at (older first for same priority)
+                $time_a = isset($a['created_at']) ? strtotime($a['created_at']) : 0;
+                $time_b = isset($b['created_at']) ? strtotime($b['created_at']) : 0;
+                return $time_a - $time_b;
+            });
+            
+            // Limit results
+            $pending_items = array_slice($pending_items, 0, $limit);
+            
+            wp_send_json_success(array(
+                'items' => $pending_items,
+                'count' => count($pending_items),
+                'total_pending' => count(array_filter($queue, function($item) {
+                    return $item['status'] === 'pending';
+                }))
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => __('Error getting pending items: ', 'kotacom-ai') . $e->getMessage()));
         }
     }
 }
