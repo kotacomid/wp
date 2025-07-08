@@ -238,9 +238,12 @@ class KotacomAI_Queue_Manager {
         
         if ($processed > 0) {
             if (class_exists('KotacomAI_Logger')) {
-            KotacomAI_Logger::add('queue_batch', 1, null, "Processed {$processed} items");
+                KotacomAI_Logger::add('queue_batch', 1, null, "Processed {$processed} items");
+            }
         }
-        }
+        
+        // Update last process time
+        update_option('kotacom_ai_last_queue_process', current_time('mysql'));
     }
     
     /**
@@ -269,52 +272,112 @@ class KotacomAI_Queue_Manager {
      * Process content generation
      */
     private function process_content_generation($data) {
-        $generator = new KotacomAI_Content_Generator();
-        
-        $result = $generator->generate_content(
-            $data['keyword'],
-            $data['prompt'],
-            $data['params']
-        );
-        
-        if ($result && !is_wp_error($result)) {
+        try {
+            // Extract data
+            $keyword = $data['keyword'] ?? '';
+            $prompt = $data['prompt'] ?? '';
+            $params = $data['params'] ?? array();
+            
+            if (empty($keyword) || empty($prompt)) {
+                throw new Exception('Missing keyword or prompt in queue data');
+            }
+            
+            // Replace {keyword} in prompt
+            $final_prompt = str_replace('{keyword}', $keyword, $prompt);
+            
+            // Use API handler directly for queue processing
+            $api_handler = new KotacomAI_API_Handler();
+            $result = $api_handler->generate_content($final_prompt, $params);
+            
+            if (!$result['success']) {
+                throw new Exception($result['error'] ?? 'Content generation failed');
+            }
+            
+            $generated_content = $result['content'];
+            
             // Create post if specified
             if (isset($data['create_post']) && $data['create_post']) {
+                // Generate title from keyword or content
+                $title = $this->generate_post_title($keyword, $generated_content);
+                
                 $post_data = array(
-                    'post_title' => $result['title'] ?? $data['keyword'],
-                    'post_content' => $result['content'],
-                    'post_excerpt' => $result['excerpt'] ?? '',
+                    'post_title' => $title,
+                    'post_content' => $generated_content,
                     'post_status' => $data['post_status'] ?? 'draft',
                     'post_type' => $data['post_type'] ?? 'post',
-                    'post_category' => $data['categories'] ?? array(),
-                    'tags_input' => $data['tags'] ?? ''
+                    'post_author' => get_current_user_id() ?: 1,
+                    'meta_input' => array(
+                        'kotacom_ai_generated' => true,
+                        'kotacom_ai_keyword' => $keyword,
+                        'kotacom_ai_generated_at' => current_time('mysql'),
+                        'kotacom_ai_provider_used' => get_option('kotacom_ai_api_provider'),
+                        'kotacom_ai_batch_id' => $data['batch_id'] ?? ''
+                    )
                 );
+                
+                // Add categories
+                if (!empty($data['categories'])) {
+                    $post_data['post_category'] = array_map('intval', $data['categories']);
+                }
                 
                 $post_id = wp_insert_post($post_data);
                 
                 if ($post_id && !is_wp_error($post_id)) {
-                    // Add meta description
-                    if (isset($result['meta_description'])) {
-                        update_post_meta($post_id, '_yoast_wpseo_metadesc', $result['meta_description']);
+                    // Add tags
+                    if (!empty($data['tags'])) {
+                        wp_set_post_tags($post_id, explode(',', $data['tags']));
                     }
                     
                     // Generate featured image if enabled
-                    if (get_option('kotacom_ai_auto_featured_image')) {
-                        $this->add_to_queue('generate_image', array(
+                    if (get_option('kotacom_ai_auto_featured_image', false)) {
+                        $this->add_single_item_to_queue('generate_image', array(
                             'post_id' => $post_id,
-                            'prompt' => "Featured image for: " . $data['keyword'],
+                            'prompt' => "Featured image for: " . $keyword,
                             'featured' => true
                         ), 5);
                     }
                     
+                    // Log successful creation
+                    if (class_exists('KotacomAI_Logger')) {
+                        KotacomAI_Logger::add('queue_generate', 1, $post_id, "Generated content for: {$keyword}");
+                    }
+                    
                     return $post_id;
+                } else {
+                    throw new Exception('Failed to create WordPress post');
                 }
             }
             
             return true;
+            
+        } catch (Exception $e) {
+            if (class_exists('KotacomAI_Logger')) {
+                KotacomAI_Logger::add('queue_generate_error', 0, null, "Failed to generate content for {$keyword}: " . $e->getMessage());
+            }
+            throw $e;
+        }
+    }
+    
+    /**
+     * Generate post title from keyword or content
+     */
+    private function generate_post_title($keyword, $content) {
+        // Try to extract title from content (look for first heading)
+        if (preg_match('/<h[1-6][^>]*>(.*?)<\/h[1-6]>/i', $content, $matches)) {
+            return wp_strip_all_tags($matches[1]);
         }
         
-        return false;
+        // Try to get first sentence
+        $sentences = preg_split('/[.!?]+/', wp_strip_all_tags($content));
+        if (!empty($sentences[0])) {
+            $title = trim($sentences[0]);
+            if (strlen($title) > 10 && strlen($title) < 100) {
+                return $title;
+            }
+        }
+        
+        // Fallback to keyword-based title
+        return ucwords(str_replace(array('-', '_'), ' ', $keyword));
     }
     
     /**

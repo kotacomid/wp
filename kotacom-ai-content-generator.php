@@ -221,6 +221,10 @@ class KotacomAI {
         
         // Gutenberg blocks
         add_action('wp_ajax_kotacom_generate_content_block', array($this, 'ajax_generate_content_block'));
+        
+        // Queue management
+        add_action('wp_ajax_kotacom_process_queue_manually', array($this, 'ajax_process_queue_manually'));
+        add_action('wp_ajax_kotacom_get_queue_debug', array($this, 'ajax_get_queue_debug'));
     }
     
     /**
@@ -1418,6 +1422,77 @@ class KotacomAI {
             wp_send_json_error(array('message' => __('Server error: ', 'kotacom-ai') . $e->getMessage()));
         } catch (Error $e) {
             wp_send_json_error(array('message' => __('Fatal error: ', 'kotacom-ai') . $e->getMessage()));
+        }
+    }
+    
+    /**
+     * Manually process queue (for debugging)
+     */
+    public function ajax_process_queue_manually() {
+        try {
+            check_ajax_referer('kotacom_ai_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+            }
+            
+            // Manually trigger queue processing
+            $this->queue_manager->process_queue();
+            
+            // Get updated queue status
+            $status = $this->queue_manager->get_queue_status();
+            
+            wp_send_json_success(array(
+                'message' => __('Queue processed manually', 'kotacom-ai'),
+                'queue_status' => $status
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => __('Error processing queue: ', 'kotacom-ai') . $e->getMessage()));
+        }
+    }
+    
+    /**
+     * Get queue debug information
+     */
+    public function ajax_get_queue_debug() {
+        try {
+            check_ajax_referer('kotacom_ai_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => __('Insufficient permissions', 'kotacom-ai')));
+            }
+            
+            $queue = get_option('kotacom_ai_queue', array());
+            $queue_status = $this->queue_manager->get_queue_status();
+            $batches = get_option('kotacom_ai_batches', array());
+            
+            // Get recent queue items (last 10)
+            $recent_items = array_slice($queue, -10);
+            
+            // Get failed items
+            $failed_items = $this->queue_manager->get_failed_items(5);
+            
+            // Check cron status
+            $next_cron = wp_next_scheduled('kotacom_ai_process_queue');
+            $cron_status = $next_cron ? date('Y-m-d H:i:s', $next_cron) : 'Not scheduled';
+            
+            // Check if queue is paused
+            $is_paused = $this->queue_manager->is_paused();
+            
+            wp_send_json_success(array(
+                'queue_status' => $queue_status,
+                'recent_items' => $recent_items,
+                'failed_items' => $failed_items,
+                'total_batches' => count($batches),
+                'cron_status' => $cron_status,
+                'is_paused' => $is_paused,
+                'last_process_time' => get_option('kotacom_ai_last_queue_process', 'Never'),
+                'queue_option_size' => strlen(serialize($queue)) . ' bytes'
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => __('Error getting debug info: ', 'kotacom-ai') . $e->getMessage()));
         }
     }
 }

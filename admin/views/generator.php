@@ -23,6 +23,14 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
         <a href="<?php echo admin_url('admin.php?page=kotacom-ai-keywords'); ?>" class="button"><?php _e('📝 Manage Keywords', 'kotacom-ai'); ?></a>
         <a href="<?php echo admin_url('admin.php?page=kotacom-ai-prompts'); ?>" class="button"><?php _e('💬 Create Prompts', 'kotacom-ai'); ?></a>
         <a href="<?php echo admin_url('admin.php?page=kotacom-ai-logs'); ?>" class="button"><?php _e('📊 View Results', 'kotacom-ai'); ?></a>
+        
+        <!-- Queue Debug Section -->
+        <div style="margin-top: 15px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 5px;">
+            <h4 style="margin: 0 0 10px 0;"><?php _e('🔧 Queue Debug', 'kotacom-ai'); ?></h4>
+            <button type="button" id="check-queue-status" class="button"><?php _e('Check Queue Status', 'kotacom-ai'); ?></button>
+            <button type="button" id="process-queue-manually" class="button button-secondary"><?php _e('Process Queue Now', 'kotacom-ai'); ?></button>
+            <div id="queue-status-display" style="margin-top: 10px; font-family: monospace; font-size: 12px; background: white; padding: 10px; border-radius: 3px; max-height: 200px; overflow-y: auto; display: none;"></div>
+        </div>
     </div>
     
     <div class="kotacom-ai-generator">
@@ -492,6 +500,104 @@ jQuery(document).ready(function($) {
     // Load keywords when tag filter changes
     $('#tag-filter').on('change', function() {
         loadKeywords();
+    });
+    
+    // Queue Debug Functions
+    $('#check-queue-status').on('click', function() {
+        var $btn = $(this);
+        var $display = $('#queue-status-display');
+        
+        $btn.prop('disabled', true).text('Checking...');
+        
+        $.ajax({
+            url: kotacomAI.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'kotacom_get_queue_debug',
+                nonce: kotacomAI.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    var data = response.data;
+                    var html = '<strong>Queue Status:</strong><br>';
+                    html += 'Total: ' + data.queue_status.total + '<br>';
+                    html += 'Pending: ' + data.queue_status.pending + '<br>';
+                    html += 'Processing: ' + data.queue_status.processing + '<br>';
+                    html += 'Completed: ' + data.queue_status.completed + '<br>';
+                    html += 'Failed: ' + data.queue_status.failed + '<br>';
+                    html += 'Retry: ' + data.queue_status.retry + '<br><br>';
+                    
+                    html += '<strong>Cron Status:</strong> ' + data.cron_status + '<br>';
+                    html += '<strong>Queue Paused:</strong> ' + (data.is_paused ? 'Yes' : 'No') + '<br>';
+                    html += '<strong>Last Process:</strong> ' + data.last_process_time + '<br>';
+                    html += '<strong>Total Batches:</strong> ' + data.total_batches + '<br>';
+                    html += '<strong>Queue Size:</strong> ' + data.queue_option_size + '<br><br>';
+                    
+                    if (data.recent_items && data.recent_items.length > 0) {
+                        html += '<strong>Recent Items:</strong><br>';
+                        data.recent_items.forEach(function(item) {
+                            html += '- ' + item.action + ' (' + item.status + ') - ' + (item.data.keyword || 'N/A') + '<br>';
+                        });
+                    }
+                    
+                    if (data.failed_items && data.failed_items.length > 0) {
+                        html += '<br><strong>Failed Items:</strong><br>';
+                        data.failed_items.forEach(function(item) {
+                            html += '- ' + item.action + ': ' + (item.last_error || 'Unknown error') + '<br>';
+                        });
+                    }
+                    
+                    $display.html(html).show();
+                } else {
+                    $display.html('<span style="color: red;">Error: ' + response.data.message + '</span>').show();
+                }
+            },
+            error: function() {
+                $display.html('<span style="color: red;">AJAX Error occurred</span>').show();
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Check Queue Status');
+            }
+        });
+    });
+    
+    $('#process-queue-manually').on('click', function() {
+        var $btn = $(this);
+        var $display = $('#queue-status-display');
+        
+        $btn.prop('disabled', true).text('Processing...');
+        
+        $.ajax({
+            url: kotacomAI.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'kotacom_process_queue_manually',
+                nonce: kotacomAI.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    var html = '<span style="color: green;">' + response.data.message + '</span><br><br>';
+                    var status = response.data.queue_status;
+                    html += '<strong>After Processing:</strong><br>';
+                    html += 'Total: ' + status.total + '<br>';
+                    html += 'Pending: ' + status.pending + '<br>';
+                    html += 'Processing: ' + status.processing + '<br>';
+                    html += 'Completed: ' + status.completed + '<br>';
+                    html += 'Failed: ' + status.failed + '<br>';
+                    html += 'Retry: ' + status.retry + '<br>';
+                    
+                    $display.html(html).show();
+                } else {
+                    $display.html('<span style="color: red;">Error: ' + response.data.message + '</span>').show();
+                }
+            },
+            error: function() {
+                $display.html('<span style="color: red;">AJAX Error occurred</span>').show();
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Process Queue Now');
+            }
+        });
     });
     
     // Template preview
