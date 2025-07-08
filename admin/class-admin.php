@@ -492,16 +492,19 @@ class KotacomAI_Admin {
     private function add_content_refresh_help_info() {
         add_action('admin_notices', function() {
             $this->display_help_box(
-                __('Content Refresh', 'kotacom-ai'),
-                '<p>' . __('Update existing posts with fresh AI-generated content. Select posts and choose what to refresh.', 'kotacom-ai') . '</p>' .
-                '<p><strong>' . __('What gets updated:', 'kotacom-ai') . '</strong> ' . __('Title, content, excerpt, meta description, or featured image based on your selection.', 'kotacom-ai') . '</p>'
+                __('Content Refresh with AI', 'kotacom-ai'),
+                '<p>' . __('Update existing posts with fresh AI-generated content using smart placeholders and templates.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('How it works:', 'kotacom-ai') . '</strong> ' . __('AI reads your existing content and creates new/updated content based on your instructions. Use placeholders like {title} and {current_content} to reference existing post data.', 'kotacom-ai') . '</p>' .
+                '<p><strong>' . __('Two methods:', 'kotacom-ai') . '</strong> ' . __('1) Write custom prompts with placeholders, or 2) Use pre-made templates that automatically insert post data.', 'kotacom-ai') . '</p>'
             );
             
             $tips = array(
-                __('Backup your content before refreshing important posts', 'kotacom-ai'),
-                __('Use filters to find posts that need updating', 'kotacom-ai'),
-                __('Refresh content periodically to maintain SEO relevance', 'kotacom-ai'),
-                __('Review refreshed content before making it live', 'kotacom-ai')
+                __('Use {title} to reference the post title in your instructions', 'kotacom-ai'),
+                __('Use {current_content} to have AI work with existing content', 'kotacom-ai'),
+                __('Templates automatically replace {keyword} with the post title', 'kotacom-ai'),
+                __('Filter posts by date/category to target specific content', 'kotacom-ai'),
+                __('Always backup important content before refreshing', 'kotacom-ai'),
+                __('Review AI-generated updates before publishing', 'kotacom-ai')
             );
             $this->display_tips_box($tips);
         });
@@ -584,9 +587,11 @@ class KotacomAI_Admin {
         $this->add_content_refresh_help_info();
         
         // Enhanced post query with pagination support
-        $posts_per_page = 50;
+        $posts_per_page = isset($_GET['posts_per_page']) ? max(10, min(200, intval($_GET['posts_per_page']))) : 25;
         $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
         $date_filter = isset($_GET['date_filter']) ? sanitize_text_field($_GET['date_filter']) : 'all';
+        $category_filter = isset($_GET['category_filter']) ? intval($_GET['category_filter']) : 0;
+        $search_term = isset($_GET['search_posts']) ? sanitize_text_field($_GET['search_posts']) : '';
         
         $args = array(
             'posts_per_page' => $posts_per_page,
@@ -596,6 +601,16 @@ class KotacomAI_Admin {
             'orderby' => 'date',
             'order' => 'DESC'
         );
+        
+        // Add search functionality
+        if (!empty($search_term)) {
+            $args['s'] = $search_term;
+        }
+        
+        // Add category filter
+        if ($category_filter > 0) {
+            $args['cat'] = $category_filter;
+        }
         
         // Add date filtering
         if ($date_filter !== 'all') {
@@ -649,56 +664,172 @@ class KotacomAI_Admin {
             <h1><?php _e('Content Refresh', 'kotacom-ai'); ?></h1>
             <p><?php _e('Select posts, enter a refresh prompt, and let AI update the content.', 'kotacom-ai'); ?></p>
             
-            <!-- Enhanced Filters -->
-            <div class="tablenav top">
-                <div class="alignleft actions">
-                    <label for="refresh-template"><strong><?php _e('Template:', 'kotacom-ai'); ?></strong></label>
-                    <select id="refresh-template">
-                        <option value=""><?php _e('— Select template —', 'kotacom-ai'); ?></option>
-                        <?php
-                        $templates = get_posts(array('post_type' => 'kotacom_template', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC'));
-                        foreach($templates as $t): ?>
-                            <option value="<?php echo esc_attr($t->ID); ?>"><?php echo esc_html($t->post_title); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    
-                    <label for="cat-filter" style="margin-left: 20px;"><strong><?php _e('Category:', 'kotacom-ai'); ?></strong></label>
-                    <select id="cat-filter">
-                        <option value="all"><?php _e('All Categories', 'kotacom-ai'); ?></option>
-                        <?php $all_cats = get_categories(array('hide_empty'=>false));
-                        foreach($all_cats as $c): ?>
-                            <option value="<?php echo esc_attr($c->term_id); ?>"><?php echo esc_html($c->name); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    
-                    <label for="date-filter" style="margin-left: 20px;"><strong><?php _e('Date:', 'kotacom-ai'); ?></strong></label>
-                    <select id="date-filter" onchange="window.location.href=this.value;">
-                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=all'); ?>" <?php selected($date_filter, 'all'); ?>><?php _e('All Dates', 'kotacom-ai'); ?></option>
-                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=last_week'); ?>" <?php selected($date_filter, 'last_week'); ?>><?php _e('Last Week', 'kotacom-ai'); ?></option>
-                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=last_month'); ?>" <?php selected($date_filter, 'last_month'); ?>><?php _e('Last Month', 'kotacom-ai'); ?></option>
-                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=last_3_months'); ?>" <?php selected($date_filter, 'last_3_months'); ?>><?php _e('Last 3 Months', 'kotacom-ai'); ?></option>
-                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=last_year'); ?>" <?php selected($date_filter, 'last_year'); ?>><?php _e('Last Year', 'kotacom-ai'); ?></option>
-                        <option value="<?php echo admin_url('admin.php?page=kotacom-ai-refresh&date_filter=older_than_year'); ?>" <?php selected($date_filter, 'older_than_year'); ?>><?php _e('Older than 1 Year', 'kotacom-ai'); ?></option>
-                    </select>
-                </div>
-                
-                <div class="alignright actions">
-                    <input type="checkbox" id="update-date" /> 
-                    <label for="update-date"><?php _e('Update post date to now', 'kotacom-ai'); ?></label>
+            <!-- Usage Guide -->
+            <div class="notice notice-info" style="margin-bottom: 20px;">
+                <h4 style="margin-top: 10px;">📋 <?php _e('How to Use Content Refresh', 'kotacom-ai'); ?></h4>
+                <div style="display: flex; gap: 30px; margin: 15px 0;">
+                    <div style="flex: 1;">
+                        <h5>🎯 <?php _e('Available Placeholders:', 'kotacom-ai'); ?></h5>
+                        <ul style="margin: 5px 0 0 20px; font-family: monospace; font-size: 12px;">
+                            <li><code>{title}</code> - <?php _e('Post title', 'kotacom-ai'); ?></li>
+                            <li><code>{current_content}</code> - <?php _e('Existing content', 'kotacom-ai'); ?></li>
+                            <li><code>{excerpt}</code> - <?php _e('Post excerpt', 'kotacom-ai'); ?></li>
+                            <li><code>{categories}</code> - <?php _e('Post categories', 'kotacom-ai'); ?></li>
+                            <li><code>{tags}</code> - <?php _e('Post tags', 'kotacom-ai'); ?></li>
+                        </ul>
+                    </div>
+                    <div style="flex: 1;">
+                        <h5>💡 <?php _e('Example Prompts:', 'kotacom-ai'); ?></h5>
+                        <ul style="margin: 5px 0 0 20px; font-size: 12px;">
+                            <li><em>"Update {title} with 2025 statistics and add FAQ section"</em></li>
+                            <li><em>"Rewrite the introduction of {current_content} to be more engaging"</em></li>
+                            <li><em>"Add conclusion section to {title} about {categories}"</em></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             
-            <p><strong><?php _e('Total Posts:', 'kotacom-ai'); ?></strong> <?php echo number_format($total_posts); ?> | 
-               <strong><?php _e('Showing:', 'kotacom-ai'); ?></strong> <?php echo count($posts); ?> posts</p>
-            <textarea id="refresh-prompt" style="width:100%;min-height:120px;" placeholder="<?php _e('e.g., Rewrite intro, update stats to 2025, add FAQ… Use {current_content} and {title} placeholders.', 'kotacom-ai'); ?>"></textarea>
+            <!-- Enhanced Filters -->
+            <div class="postbox" style="margin-bottom: 20px;">
+                <h3 class="hndle" style="padding: 10px 15px;"><?php _e('🔍 Filter Posts', 'kotacom-ai'); ?></h3>
+                <div class="inside" style="padding: 15px;">
+                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                        <!-- Search Posts -->
+                        <div>
+                            <label for="search-posts" style="font-weight: bold;"><?php _e('Search:', 'kotacom-ai'); ?></label>
+                            <input type="text" id="search-posts" placeholder="<?php _e('Search posts...', 'kotacom-ai'); ?>" 
+                                   value="<?php echo esc_attr($search_term); ?>" style="width: 200px;">
+                        </div>
+                        
+                        <!-- Category Filter -->
+                        <div>
+                            <label for="category-filter" style="font-weight: bold;"><?php _e('Category:', 'kotacom-ai'); ?></label>
+                            <select id="category-filter">
+                                <option value="0"><?php _e('All Categories', 'kotacom-ai'); ?></option>
+                                <?php $all_cats = get_categories(array('hide_empty'=>false));
+                                foreach($all_cats as $c): ?>
+                                    <option value="<?php echo esc_attr($c->term_id); ?>" <?php selected($category_filter, $c->term_id); ?>>
+                                        <?php echo esc_html($c->name); ?> (<?php echo $c->count; ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <!-- Date Filter -->
+                        <div>
+                            <label for="date-filter" style="font-weight: bold;"><?php _e('Date:', 'kotacom-ai'); ?></label>
+                            <select id="date-filter">
+                                <option value="all" <?php selected($date_filter, 'all'); ?>><?php _e('All Dates', 'kotacom-ai'); ?></option>
+                                <option value="last_week" <?php selected($date_filter, 'last_week'); ?>><?php _e('Last Week', 'kotacom-ai'); ?></option>
+                                <option value="last_month" <?php selected($date_filter, 'last_month'); ?>><?php _e('Last Month', 'kotacom-ai'); ?></option>
+                                <option value="last_3_months" <?php selected($date_filter, 'last_3_months'); ?>><?php _e('Last 3 Months', 'kotacom-ai'); ?></option>
+                                <option value="last_year" <?php selected($date_filter, 'last_year'); ?>><?php _e('Last Year', 'kotacom-ai'); ?></option>
+                                <option value="older_than_year" <?php selected($date_filter, 'older_than_year'); ?>><?php _e('Older than 1 Year', 'kotacom-ai'); ?></option>
+                            </select>
+                        </div>
+                        
+                        <!-- Posts Per Page -->
+                        <div>
+                            <label for="posts-per-page" style="font-weight: bold;"><?php _e('Show:', 'kotacom-ai'); ?></label>
+                            <select id="posts-per-page">
+                                <option value="10" <?php selected($posts_per_page, 10); ?>>10</option>
+                                <option value="25" <?php selected($posts_per_page, 25); ?>>25</option>
+                                <option value="50" <?php selected($posts_per_page, 50); ?>>50</option>
+                                <option value="100" <?php selected($posts_per_page, 100); ?>>100</option>
+                            </select>
+                        </div>
+                        
+                        <button type="button" id="apply-filters" class="button button-secondary"><?php _e('Apply Filters', 'kotacom-ai'); ?></button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Template and Prompt Selection -->
+            <div class="postbox">
+                <h3 class="hndle" style="padding: 10px 15px;"><?php _e('🤖 Refresh Instructions', 'kotacom-ai'); ?></h3>
+                <div class="inside" style="padding: 15px;">
+                    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div style="flex: 1;">
+                            <label for="refresh-template" style="font-weight: bold;"><?php _e('Use Template:', 'kotacom-ai'); ?></label>
+                            <select id="refresh-template" style="width: 100%;">
+                                <option value=""><?php _e('— Or select a template —', 'kotacom-ai'); ?></option>
+                                <?php
+                                $templates = get_posts(array('post_type' => 'kotacom_template', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC'));
+                                foreach($templates as $t): ?>
+                                    <option value="<?php echo esc_attr($t->ID); ?>"><?php echo esc_html($t->post_title); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;"><?php _e('Options:', 'kotacom-ai'); ?></label>
+                            <label>
+                                <input type="checkbox" id="update-date" /> 
+                                <?php _e('Update post date to now', 'kotacom-ai'); ?>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <label for="refresh-prompt" style="font-weight: bold; display: block; margin-bottom: 5px;"><?php _e('Custom Refresh Prompt:', 'kotacom-ai'); ?></label>
+                    <textarea id="refresh-prompt" style="width:100%; min-height:120px;" 
+                              placeholder="<?php _e('Example: Update {title} with latest 2025 trends and add FAQ section. Use {current_content} as base and focus on {categories} topics.', 'kotacom-ai'); ?>"></textarea>
+                    <p class="description"><?php _e('Use placeholders like {title}, {current_content}, {categories} etc. Templates can be used instead of writing custom prompts.', 'kotacom-ai'); ?></p>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0;">
+                <div>
+                    <p style="margin: 0;"><strong><?php _e('Total Posts:', 'kotacom-ai'); ?></strong> <?php echo number_format($total_posts); ?> | 
+                       <strong><?php _e('Showing:', 'kotacom-ai'); ?></strong> <?php echo count($posts); ?> <?php _e('posts on this page', 'kotacom-ai'); ?></p>
+                </div>
+                <div>
+                    <label>
+                        <input type="checkbox" id="select-all" /> 
+                        <strong><?php _e('Select All on This Page', 'kotacom-ai'); ?></strong>
+                    </label>
+                </div>
+            </div>
             <table class="widefat fixed striped" id="refresh-table">
-                <thead><tr><th><input type="checkbox" id="select-all" /></th><th><?php _e('Title', 'kotacom-ai'); ?></th><th><?php _e('Date', 'kotacom-ai'); ?></th></tr></thead>
+                <thead><tr><th style="width: 50px;"></th><th><?php _e('Title', 'kotacom-ai'); ?></th><th style="width: 120px;"><?php _e('Date', 'kotacom-ai'); ?></th><th style="width: 120px;"><?php _e('Categories', 'kotacom-ai'); ?></th></tr></thead>
                 <tbody>
-                <?php foreach($posts as $p): $cats = wp_get_post_categories($p->ID); ?>
+                <?php foreach($posts as $p): 
+                    $cats = wp_get_post_categories($p->ID);
+                    $cat_names = array();
+                    foreach($cats as $cat_id) {
+                        $cat = get_category($cat_id);
+                        if ($cat) {
+                            $cat_names[] = $cat->name;
+                        }
+                    }
+                ?>
                     <tr data-cats="<?php echo esc_attr(implode(',', $cats)); ?>">
                         <td><input type="checkbox" class="post-select" value="<?php echo esc_attr($p->ID); ?>" /></td>
-                        <td><?php echo esc_html($p->post_title); ?></td>
-                        <td><?php echo esc_html(get_the_date('', $p)); ?></td>
+                        <td>
+                            <strong><?php echo esc_html($p->post_title); ?></strong>
+                            <div style="margin-top: 5px;">
+                                <a href="<?php echo get_edit_post_link($p->ID); ?>" target="_blank" style="font-size: 12px; color: #666; text-decoration: none;">
+                                    <?php _e('Edit', 'kotacom-ai'); ?> →
+                                </a>
+                                <span style="margin: 0 5px; color: #ddd;">|</span>
+                                <a href="<?php echo get_permalink($p->ID); ?>" target="_blank" style="font-size: 12px; color: #666; text-decoration: none;">
+                                    <?php _e('View', 'kotacom-ai'); ?> →
+                                </a>
+                            </div>
+                        </td>
+                        <td style="font-size: 12px; color: #666;">
+                            <?php echo esc_html(get_the_date('M j, Y', $p)); ?>
+                            <br><small><?php echo esc_html(get_the_date('H:i', $p)); ?></small>
+                        </td>
+                        <td style="font-size: 12px;">
+                            <?php if (!empty($cat_names)): ?>
+                                <?php foreach($cat_names as $cat_name): ?>
+                                    <span style="display: inline-block; background: #f0f0f1; padding: 2px 6px; margin: 1px; border-radius: 3px; font-size: 11px;">
+                                        <?php echo esc_html($cat_name); ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <span style="color: #999; font-style: italic;"><?php _e('Uncategorized', 'kotacom-ai'); ?></span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -732,32 +863,57 @@ class KotacomAI_Admin {
         </div>
         <script>
         jQuery(function($){
+            // Select all functionality
             $('#select-all').on('change', function(){
                 $('.post-select').prop('checked', $(this).is(':checked'));
             });
 
-            // Category filter
-            $('#cat-filter').on('change', function(){
-                var val = $(this).val();
-                $('#refresh-table tbody tr').each(function(){
-                    var cats = $(this).data('cats').toString().split(',');
-                    if(val==='all' || cats.includes(val)){
-                        $(this).show();
-                    }else{
-                        $(this).hide();
-                        $(this).find('.post-select').prop('checked', false);
-                    }
-                });
+            // Apply filters functionality
+            function applyFilters() {
+                var searchTerm = $('#search-posts').val();
+                var categoryFilter = $('#category-filter').val();
+                var dateFilter = $('#date-filter').val();
+                var postsPerPage = $('#posts-per-page').val();
+                
+                var url = new URL(window.location.href);
+                url.searchParams.set('search_posts', searchTerm);
+                url.searchParams.set('category_filter', categoryFilter);
+                url.searchParams.set('date_filter', dateFilter);
+                url.searchParams.set('posts_per_page', postsPerPage);
+                url.searchParams.delete('paged'); // Reset to first page
+                
+                window.location.href = url.toString();
+            }
+            
+            $('#apply-filters').on('click', applyFilters);
+            
+            // Allow Enter key in search to apply filters
+            $('#search-posts').on('keypress', function(e){
+                if(e.which === 13) {
+                    applyFilters();
+                }
             });
 
             // Load template content into textarea
             $('#refresh-template').on('change', function(){
                 var tid = $(this).val();
-                if(!tid){ $('#refresh-prompt').val(''); return; }
-                $.post(ajaxurl, { action: 'kotacom_get_template', nonce: '<?php echo esc_js($nonce); ?>', template_id: tid }, function(res){
-                    if(res.success){
-                        if(res.data.template){ $('#refresh-prompt').val(res.data.template.content); }
+                if(!tid){ 
+                    $('#refresh-prompt').val('');
+                    $('#refresh-prompt').attr('placeholder', '<?php echo esc_js(__('Example: Update {title} with latest 2025 trends and add FAQ section. Use {current_content} as base and focus on {categories} topics.', 'kotacom-ai')); ?>');
+                    return; 
+                }
+                
+                $.post(ajaxurl, { 
+                    action: 'kotacom_get_template', 
+                    nonce: '<?php echo esc_js($nonce); ?>', 
+                    template_id: tid 
+                }, function(res){
+                    if(res.success && res.data && res.data.template){
+                        $('#refresh-prompt').val(res.data.template.content);
+                        $('#refresh-prompt').attr('placeholder', '<?php echo esc_js(__('Template loaded. You can edit it or use as-is.', 'kotacom-ai')); ?>');
                     }
+                }).fail(function(){
+                    alert('<?php echo esc_js(__('Failed to load template. Please try again.', 'kotacom-ai')); ?>');
                 });
             });
 

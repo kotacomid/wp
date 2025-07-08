@@ -319,6 +319,7 @@ if (empty($existing_templates)) {
                     <div id="template-method" class="method-content">
                         <div class="info-card" style="margin-bottom: 15px;">
                             <p><strong><?php _e('📋 Post Template Generation:', 'kotacom-ai'); ?></strong> <?php _e('Uses predefined HTML templates with keyword placeholders for consistent content structure.', 'kotacom-ai'); ?></p>
+                            <p><strong><?php _e('How it works:', 'kotacom-ai'); ?></strong> <?php _e('Templates contain HTML structure with {keyword} placeholders. AI creates content to fill each section, replacing {keyword} with your selected keywords.', 'kotacom-ai'); ?></p>
                         </div>
                         
                         <label for="post-template-select"><?php _e('Choose a post template:', 'kotacom-ai'); ?></label>
@@ -337,10 +338,10 @@ if (empty($existing_templates)) {
                         </div>
                         
                         <div class="template-actions" style="margin-top: 15px;">
-                            <a href="<?php echo admin_url('admin.php?page=kotacom-ai-template-editor'); ?>" class="button button-secondary">
+                            <a href="<?php echo admin_url('admin.php?page=kotacom-ai-templates'); ?>" class="button button-secondary">
                                 <?php _e('📝 Create New Template', 'kotacom-ai'); ?>
                             </a>
-                            <a href="<?php echo admin_url('admin.php?page=kotacom-ai-template-editor'); ?>" class="button button-secondary">
+                            <a href="<?php echo admin_url('admin.php?page=kotacom-ai-templates'); ?>" class="button button-secondary">
                                 <?php _e('✏️ Edit Templates', 'kotacom-ai'); ?>
                             </a>
                         </div>
