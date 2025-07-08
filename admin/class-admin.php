@@ -118,17 +118,7 @@ class KotacomAI_Admin {
             array($this, 'display_logs_page')
         );
         
-        add_submenu_page(
-            'kotacom-ai',
-            __('Generator Post Template', 'kotacom-ai'),
-            __('Generator Post Template', 'kotacom-ai'),
-            'manage_options',
-            'kotacom-ai-generator-post-template',
-            array(
-                $this,
-                'display_generator_post_template_page'
-            )
-        );
+
     }
     
     /**
@@ -538,128 +528,7 @@ class KotacomAI_Admin {
         });
     }
 
-    /**
-     * Display Generator Post Template page
-     */
-    public function display_generator_post_template_page() {
-        // Get data needed for the template
-        $tags = $this->database->get_all_tags();
-        $categories = get_categories(array('hide_empty' => false));
-        $post_types = get_post_types(array('public' => true), 'objects');
-        
-        // Get custom post type templates (kotacom_template)
-        $existing_templates = get_posts(array(
-            'post_type' => 'kotacom_template',
-            'post_status' => 'publish',
-            'numberposts' => -1,
-            'orderby' => 'title',
-            'order' => 'ASC'
-        ));
-        
-        // If no custom templates exist, create some default ones
-        if (empty($existing_templates)) {
-            $this->create_default_templates();
-            $existing_templates = get_posts(array(
-                'post_type' => 'kotacom_template',
-                'post_status' => 'publish',
-                'numberposts' => -1,
-                'orderby' => 'title',
-                'order' => 'ASC'
-            ));
-        }
-        
-        include plugin_dir_path(__FILE__) . 'views/generator-post-template.php';
-    }
-    
-    /**
-     * Create default templates for the custom post type
-     */
-    private function create_default_templates() {
-        $default_templates = array(
-            array(
-                'title' => 'Blog Article Template',
-                'content' => '<h1>{keyword}</h1>
 
-<p>Introduction about {keyword}...</p>
-
-<h2>What is {keyword}?</h2>
-<p>Detailed explanation of {keyword}...</p>
-
-<h2>Benefits of {keyword}</h2>
-<ul>
-<li>Benefit 1</li>
-<li>Benefit 2</li>
-<li>Benefit 3</li>
-</ul>
-
-<h2>How to Use {keyword}</h2>
-<p>Step-by-step guide...</p>
-
-<h2>Conclusion</h2>
-<p>Summary about {keyword}...</p>'
-            ),
-            array(
-                'title' => 'Product Review Template',
-                'content' => '<h1>{keyword} Review</h1>
-
-<p>In this comprehensive review, we\'ll examine {keyword} in detail...</p>
-
-<h2>Overview of {keyword}</h2>
-<p>Brief overview...</p>
-
-<h2>Pros and Cons</h2>
-<h3>Pros:</h3>
-<ul>
-<li>Pro 1</li>
-<li>Pro 2</li>
-</ul>
-
-<h3>Cons:</h3>
-<ul>
-<li>Con 1</li>
-<li>Con 2</li>
-</ul>
-
-<h2>Final Verdict</h2>
-<p>Our final thoughts on {keyword}...</p>'
-            ),
-            array(
-                'title' => 'How-to Guide Template',
-                'content' => '<h1>How to Use {keyword}: Complete Guide</h1>
-
-<p>Learn everything you need to know about {keyword}...</p>
-
-<h2>What You\'ll Need</h2>
-<ul>
-<li>Requirement 1</li>
-<li>Requirement 2</li>
-</ul>
-
-<h2>Step-by-Step Instructions</h2>
-<h3>Step 1: Getting Started</h3>
-<p>First step instructions...</p>
-
-<h3>Step 2: Implementation</h3>
-<p>Second step instructions...</p>
-
-<h3>Step 3: Finishing Up</h3>
-<p>Final step instructions...</p>
-
-<h2>Tips and Best Practices</h2>
-<p>Additional tips for {keyword}...</p>'
-            )
-        );
-        
-        foreach ($default_templates as $template) {
-            wp_insert_post(array(
-                'post_title' => $template['title'],
-                'post_content' => $template['content'],
-                'post_status' => 'publish',
-                'post_type' => 'kotacom_template',
-                'post_author' => get_current_user_id()
-            ));
-        }
-    }
 
     /** Row action */
     public function add_generate_image_row_action($actions, $post) {

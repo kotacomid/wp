@@ -11,6 +11,113 @@ if (!defined('ABSPATH')) {
 $api_handler = new KotacomAI_API_Handler();
 $providers = $api_handler->get_providers();
 $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
+
+// Get post content templates (kotacom_template post type)
+$existing_templates = get_posts(array(
+    'post_type' => 'kotacom_template',
+    'post_status' => 'publish',
+    'numberposts' => -1,
+    'orderby' => 'title',
+    'order' => 'ASC'
+));
+
+// If no custom templates exist, create some default ones
+if (empty($existing_templates)) {
+    // Create default templates if they don't exist
+    $default_templates = array(
+        array(
+            'title' => 'Blog Article Template',
+            'content' => '<h1>{keyword}</h1>
+
+<p>Introduction about {keyword}...</p>
+
+<h2>What is {keyword}?</h2>
+<p>Detailed explanation of {keyword}...</p>
+
+<h2>Benefits of {keyword}</h2>
+<ul>
+<li>Benefit 1</li>
+<li>Benefit 2</li>
+<li>Benefit 3</li>
+</ul>
+
+<h2>How to Use {keyword}</h2>
+<p>Step-by-step guide...</p>
+
+<h2>Conclusion</h2>
+<p>Summary about {keyword}...</p>'
+        ),
+        array(
+            'title' => 'Product Review Template',
+            'content' => '<h1>{keyword} Review</h1>
+
+<p>In this comprehensive review, we\'ll examine {keyword} in detail...</p>
+
+<h2>Overview of {keyword}</h2>
+<p>Brief overview...</p>
+
+<h2>Pros and Cons</h2>
+<h3>Pros:</h3>
+<ul>
+<li>Pro 1</li>
+<li>Pro 2</li>
+</ul>
+
+<h3>Cons:</h3>
+<ul>
+<li>Con 1</li>
+<li>Con 2</li>
+</ul>
+
+<h2>Final Verdict</h2>
+<p>Our final thoughts on {keyword}...</p>'
+        ),
+        array(
+            'title' => 'How-to Guide Template',
+            'content' => '<h1>How to Use {keyword}: Complete Guide</h1>
+
+<p>Learn everything you need to know about {keyword}...</p>
+
+<h2>What You\'ll Need</h2>
+<ul>
+<li>Requirement 1</li>
+<li>Requirement 2</li>
+</ul>
+
+<h2>Step-by-Step Instructions</h2>
+<h3>Step 1: Getting Started</h3>
+<p>First step instructions...</p>
+
+<h3>Step 2: Implementation</h3>
+<p>Second step instructions...</p>
+
+<h3>Step 3: Finishing Up</h3>
+<p>Final step instructions...</p>
+
+<h2>Tips and Best Practices</h2>
+<p>Additional tips for {keyword}...</p>'
+        )
+    );
+    
+    foreach ($default_templates as $template) {
+        wp_insert_post(array(
+            'post_title' => $template['title'],
+            'post_content' => $template['content'],
+            'post_status' => 'publish',
+            'post_type' => 'kotacom_template',
+            'post_author' => get_current_user_id()
+        ));
+    }
+    
+    // Reload templates after creating defaults
+    $existing_templates = get_posts(array(
+        'post_type' => 'kotacom_template',
+        'post_status' => 'publish',
+        'numberposts' => -1,
+        'orderby' => 'title',
+        'order' => 'ASC'
+    ));
+}
 ?>
 
 <div class="wrap">
@@ -164,36 +271,79 @@ $current_global_provider = get_option('kotacom_ai_api_provider', 'google_ai');
                 </div>
             </div>
             
-            <!-- Prompt Selection -->
+            <!-- Content Generation Method -->
             <div class="postbox">
-                <h2 class="hndle"><?php _e('Select Prompt Template', 'kotacom-ai'); ?></h2>
+                <h2 class="hndle"><?php _e('Content Generation Method', 'kotacom-ai'); ?></h2>
                 <div class="inside">
-                    <div class="prompt-selection-tabs">
-                        <button type="button" class="tab-button active" data-tab="template"><?php _e('Use Template', 'kotacom-ai'); ?></button>
-                        <button type="button" class="tab-button" data-tab="custom"><?php _e('Custom Prompt', 'kotacom-ai'); ?></button>
+                    <div class="generation-method-tabs">
+                        <button type="button" class="method-tab-button active" data-method="prompt"><?php _e('🤖 AI Prompt', 'kotacom-ai'); ?></button>
+                        <button type="button" class="method-tab-button" data-method="template"><?php _e('📋 Post Template', 'kotacom-ai'); ?></button>
                     </div>
                     
-                    <div id="template-prompt" class="tab-content active">
-                        <label for="prompt-template-select"><?php _e('Select Template:', 'kotacom-ai'); ?></label>
-                        <select id="prompt-template-select" name="prompt_template_id">
-                            <option value=""><?php _e('Select a template', 'kotacom-ai'); ?></option>
-                            <?php foreach ($prompts as $prompt): ?>
-                                <option value="<?php echo esc_attr($prompt['id']); ?>" data-template="<?php echo esc_attr($prompt['prompt_template']); ?>">
-                                    <?php echo esc_html($prompt['prompt_name']); ?>
+                    <!-- AI Prompt Method -->
+                    <div id="prompt-method" class="method-content active">
+                        <div class="info-card" style="margin-bottom: 15px;">
+                            <p><strong><?php _e('🤖 AI Prompt Generation:', 'kotacom-ai'); ?></strong> <?php _e('Uses AI to write completely custom content based on prompts and parameters.', 'kotacom-ai'); ?></p>
+                        </div>
+                        
+                        <div class="prompt-selection-tabs">
+                            <button type="button" class="tab-button active" data-tab="template"><?php _e('Use Template', 'kotacom-ai'); ?></button>
+                            <button type="button" class="tab-button" data-tab="custom"><?php _e('Custom Prompt', 'kotacom-ai'); ?></button>
+                        </div>
+                        
+                        <div id="template-prompt" class="tab-content active">
+                            <label for="prompt-template-select"><?php _e('Select Prompt Template:', 'kotacom-ai'); ?></label>
+                            <select id="prompt-template-select" name="prompt_template_id">
+                                <option value=""><?php _e('Select a prompt template', 'kotacom-ai'); ?></option>
+                                <?php foreach ($prompts as $prompt): ?>
+                                    <option value="<?php echo esc_attr($prompt['id']); ?>" data-template="<?php echo esc_attr($prompt['prompt_template']); ?>">
+                                        <?php echo esc_html($prompt['prompt_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            
+                            <div id="template-preview" class="template-preview">
+                                <label><?php _e('Template Preview:', 'kotacom-ai'); ?></label>
+                                <div class="template-content"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="custom-prompt" class="tab-content">
+                            <label for="custom-prompt-input"><?php _e('Custom Prompt:', 'kotacom-ai'); ?></label>
+                            <textarea id="custom-prompt-input" name="custom_prompt" rows="5" placeholder="<?php _e('Enter your custom prompt. Use {keyword} as placeholder.', 'kotacom-ai'); ?>"></textarea>
+                            <p class="description"><?php _e('Use {keyword} as a placeholder that will be replaced with the actual keyword.', 'kotacom-ai'); ?></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Post Template Method -->
+                    <div id="template-method" class="method-content">
+                        <div class="info-card" style="margin-bottom: 15px;">
+                            <p><strong><?php _e('📋 Post Template Generation:', 'kotacom-ai'); ?></strong> <?php _e('Uses predefined HTML templates with keyword placeholders for consistent content structure.', 'kotacom-ai'); ?></p>
+                        </div>
+                        
+                        <label for="post-template-select"><?php _e('Choose a post template:', 'kotacom-ai'); ?></label>
+                        <select id="post-template-select" name="post_template_id">
+                            <option value=""><?php _e('Select a post template', 'kotacom-ai'); ?></option>
+                            <?php foreach ($existing_templates as $template): ?>
+                                <option value="<?php echo esc_attr($template->ID); ?>" data-content="<?php echo esc_attr($template->post_content); ?>">
+                                    <?php echo esc_html($template->post_title); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                         
-                        <div id="template-preview" class="template-preview">
+                        <div id="post-template-preview" class="template-preview">
                             <label><?php _e('Template Preview:', 'kotacom-ai'); ?></label>
                             <div class="template-content"></div>
                         </div>
-                    </div>
-                    
-                    <div id="custom-prompt" class="tab-content">
-                        <label for="custom-prompt-input"><?php _e('Custom Prompt:', 'kotacom-ai'); ?></label>
-                        <textarea id="custom-prompt-input" name="custom_prompt" rows="5" placeholder="<?php _e('Enter your custom prompt. Use {keyword} as placeholder.', 'kotacom-ai'); ?>"></textarea>
-                        <p class="description"><?php _e('Use {keyword} as a placeholder that will be replaced with the actual keyword.', 'kotacom-ai'); ?></p>
+                        
+                        <div class="template-actions" style="margin-top: 15px;">
+                            <a href="<?php echo admin_url('admin.php?page=kotacom-ai-template-editor'); ?>" class="button button-secondary">
+                                <?php _e('📝 Create New Template', 'kotacom-ai'); ?>
+                            </a>
+                            <a href="<?php echo admin_url('admin.php?page=kotacom-ai-template-editor'); ?>" class="button button-secondary">
+                                <?php _e('✏️ Edit Templates', 'kotacom-ai'); ?>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -460,6 +610,18 @@ jQuery(document).ready(function($) {
         $(this).addClass('active');
         container.find('#' + tab + '-keywords, #' + tab + '-prompt').addClass('active');
     });
+
+    // Method switching
+    $('.method-tab-button').on('click', function() {
+        var method = $(this).data('method');
+        var container = $(this).closest('.postbox');
+        
+        container.find('.method-tab-button').removeClass('active');
+        container.find('.method-content').removeClass('active');
+        
+        $(this).addClass('active');
+        container.find('#' + method + '-method').addClass('active');
+    });
     
     // Provider selection handling
     $('#session-provider').on('change', function() {
@@ -639,8 +801,8 @@ jQuery(document).ready(function($) {
             }
         });
     });
-    
-    // Template preview
+
+    // Template preview for prompt method
     $('#prompt-template-select').on('change', function() {
         var template = $(this).find(':selected').data('template');
         if (template) {
@@ -648,6 +810,17 @@ jQuery(document).ready(function($) {
             $('#template-preview').show();
         } else {
             $('#template-preview').hide();
+        }
+    });
+
+    // Template preview for template method
+    $('#post-template-select').on('change', function() {
+        var templateContent = $(this).find(':selected').data('content');
+        if (templateContent) {
+            $('#post-template-preview .template-content').html(templateContent);
+            $('#post-template-preview').show();
+        } else {
+            $('#post-template-preview').hide();
         }
     });
     
@@ -902,6 +1075,31 @@ jQuery(document).ready(function($) {
         
         // Collect form data
         var keywords = [];
+        var method = $('.method-tab-button.active').data('method');
+        var promptTemplate = '';
+        var postTemplate = '';
+
+        if (method === 'prompt') {
+            if ($('#prompt-method').hasClass('active')) {
+                promptTemplate = $('#prompt-template-select').find(':selected').data('template');
+                if (!promptTemplate) {
+                    alert('<?php _e('Please select a prompt template.', 'kotacom-ai'); ?>');
+                    return;
+                }
+            } else {
+                promptTemplate = $('#custom-prompt-input').val();
+                if (!promptTemplate) {
+                    alert('<?php _e('Please enter a custom prompt.', 'kotacom-ai'); ?>');
+                    return;
+                }
+            }
+        } else {
+            postTemplate = $('#post-template-select').find(':selected').data('content');
+            if (!postTemplate) {
+                alert('<?php _e('Please select a post template.', 'kotacom-ai'); ?>');
+                return;
+            }
+        }
         
         if ($('#existing-keywords').hasClass('active')) {
             $('input[name="selected_keywords[]"]:checked').each(function() {
@@ -920,21 +1118,6 @@ jQuery(document).ready(function($) {
         if (keywords.length === 0) {
             alert('<?php _e('Please select or enter at least one keyword.', 'kotacom-ai'); ?>');
             return;
-        }
-        
-        var promptTemplate = '';
-        if ($('#template-prompt').hasClass('active')) {
-            promptTemplate = $('#prompt-template-select').find(':selected').data('template');
-            if (!promptTemplate) {
-                alert('<?php _e('Please select a prompt template.', 'kotacom-ai'); ?>');
-                return;
-            }
-        } else {
-            promptTemplate = $('#custom-prompt-input').val();
-            if (!promptTemplate) {
-                alert('<?php _e('Please enter a custom prompt.', 'kotacom-ai'); ?>');
-                return;
-            }
         }
         
         // Get length value
@@ -964,6 +1147,7 @@ jQuery(document).ready(function($) {
                 nonce: kotacomAI.nonce,
                 keywords: keywords,
                 prompt_template: promptTemplate,
+                post_template: postTemplate, // Pass post template
                 session_provider: $('#session-provider').val(),
                 session_model: $('#session-model').val(),
                 tone: $('#tone').val(),
@@ -1035,3 +1219,139 @@ jQuery(document).ready(function($) {
     }
 });
 </script>
+
+<style>
+/* Generation Method Tabs */
+.generation-method-tabs {
+    margin: 15px 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.method-tab-button {
+    background: none;
+    border: none;
+    padding: 12px 20px;
+    margin-right: 5px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: #666;
+    transition: all 0.3s ease;
+}
+
+.method-tab-button:hover {
+    color: #2271b1;
+    background-color: #f6f7f7;
+}
+
+.method-tab-button.active {
+    color: #2271b1;
+    border-bottom-color: #2271b1;
+    background-color: #f6f7f7;
+}
+
+.method-content {
+    display: none;
+    padding: 20px 0;
+}
+
+.method-content.active {
+    display: block;
+}
+
+/* Info Cards */
+.info-card {
+    background: #f0f6fc;
+    border: 1px solid #c3d9f1;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.info-card p {
+    margin: 0 0 10px 0;
+    color: #1e3a8a;
+}
+
+.info-card ul {
+    margin: 5px 0 0 0;
+    color: #1e3a8a;
+}
+
+/* Template Actions */
+.template-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.template-actions .button {
+    text-decoration: none;
+}
+
+/* Template Preview */
+.template-preview {
+    margin-top: 15px;
+    display: none;
+}
+
+.template-preview.show {
+    display: block;
+}
+
+.template-preview label {
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.template-content {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+/* Enhanced tab styles for existing tabs */
+.tab-button {
+    background: none;
+    border: none;
+    padding: 10px 15px;
+    margin-right: 5px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    color: #666;
+    transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+    color: #2271b1;
+}
+
+.tab-button.active {
+    color: #2271b1;
+    border-bottom-color: #2271b1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .template-actions {
+        flex-direction: column;
+    }
+    
+    .method-tab-button {
+        display: block;
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 5px;
+        text-align: left;
+    }
+}
+</style>

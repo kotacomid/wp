@@ -683,7 +683,7 @@ class KotacomAI {
         wp_send_json_success(array('prompts' => $prompts));
     }
     
-    // AJAX Handlers for Content Generation - Enhanced
+    // AJAX Handlers for Content Generation - Enhanced with Template Support
     public function ajax_generate_content() {
         try {
             check_ajax_referer('kotacom_ai_nonce', 'nonce');
@@ -694,9 +694,15 @@ class KotacomAI {
             
             $keywords = isset($_POST['keywords']) && is_array($_POST['keywords']) ? array_map('sanitize_text_field', $_POST['keywords']) : array();
             $prompt_template = sanitize_textarea_field($_POST['prompt_template'] ?? '');
+            $post_template = sanitize_textarea_field($_POST['post_template'] ?? '');
             
-            if (empty($keywords) || empty($prompt_template)) {
-                wp_send_json_error(array('message' => __('Keywords and prompt template are required', 'kotacom-ai')));
+            if (empty($keywords)) {
+                wp_send_json_error(array('message' => __('Keywords are required', 'kotacom-ai')));
+            }
+            
+            // Check if we have either prompt template or post template
+            if (empty($prompt_template) && empty($post_template)) {
+                wp_send_json_error(array('message' => __('Either prompt template or post template is required', 'kotacom-ai')));
             }
             
             $parameters = array(
@@ -725,17 +731,152 @@ class KotacomAI {
                 }
             }
             
-            // Ensure content generator is initialized
-            if (!$this->content_generator) {
-                wp_send_json_error(array('message' => __('Content generator not initialized', 'kotacom-ai')));
+            // Ensure components are initialized
+            if (!$this->queue_manager) {
+                wp_send_json_error(array('message' => __('Queue manager not initialized', 'kotacom-ai')));
             }
             
-            $result = $this->content_generator->generate_content($keywords, $prompt_template, $parameters, $post_settings, $provider_override);
+            if (!$this->api_handler) {
+                wp_send_json_error(array('message' => __('API handler not initialized', 'kotacom-ai')));
+            }
             
-            if ($result && is_array($result) && isset($result['success']) && $result['success']) {
-                wp_send_json_success($result);
+            $results = array();
+            $success_count = 0;
+            $error_count = 0;
+            
+            // Determine if this is single or bulk generation
+            $is_bulk = count($keywords) > 1;
+            
+            if ($is_bulk) {
+                // Bulk generation - use queue system
+                $batch_id = 'batch_' . time() . '_' . wp_generate_password(8, false);
+                
+                foreach ($keywords as $keyword) {
+                    $final_prompt = '';
+                    
+                    // Determine which type of template to use
+                    if (!empty($post_template)) {
+                        // Post template mode - create AI prompt from template
+                        $final_prompt = $this->create_ai_prompt_from_template($post_template, $keyword, $parameters);
+                    } else {
+                        // Prompt template mode - use prompt directly
+                        $final_prompt = str_replace(
+                            array('{keyword}', '{tone}', '{length}', '{audience}', '{niche}'),
+                            array($keyword, $parameters['tone'], $parameters['length'], $parameters['audience'], $parameters['niche']),
+                            $prompt_template
+                        );
+                    }
+                    
+                    // Add to queue using queue manager
+                    $queue_item_id = $this->queue_manager->add_single_item_to_queue('generate_content', array(
+                        'keyword' => $keyword,
+                        'prompt' => $final_prompt,
+                        'params' => $parameters,
+                        'create_post' => true,
+                        'post_status' => $post_settings['post_status'] ?? 'draft',
+                        'post_type' => $post_settings['post_type'] ?? 'post',
+                        'categories' => $post_settings['categories'] ?? array(),
+                        'tags' => $post_settings['tags'] ?? '',
+                        'batch_id' => $batch_id,
+                        'provider_override' => $provider_override
+                    ), 10);
+                    
+                    if ($queue_item_id) {
+                        $results[] = array(
+                            'keyword' => $keyword,
+                            'status' => 'queued',
+                            'message' => __('Added to generation queue', 'kotacom-ai'),
+                            'queue_id' => $queue_item_id
+                        );
+                        $success_count++;
+                    } else {
+                        $results[] = array(
+                            'keyword' => $keyword,
+                            'status' => 'failed',
+                            'message' => __('Failed to add to queue', 'kotacom-ai')
+                        );
+                        $error_count++;
+                    }
+                }
+                
+                // Start processing the batch
+                if ($success_count > 0) {
+                    $this->queue_manager->start_batch_processing($batch_id);
+                    
+                    wp_send_json_success(array(
+                        'message' => sprintf(__('Bulk generation started! %d items queued for processing.', 'kotacom-ai'), $success_count),
+                        'batch_id' => $batch_id,
+                        'type' => 'bulk',
+                        'results' => $results,
+                        'success_count' => $success_count,
+                        'error_count' => $error_count
+                    ));
+                } else {
+                    wp_send_json_error(array(
+                        'message' => __('No items could be queued for processing', 'kotacom-ai'),
+                        'results' => $results
+                    ));
+                }
             } else {
-                wp_send_json_error($result ?: array('message' => __('Unknown error occurred', 'kotacom-ai')));
+                // Single generation - process immediately
+                $keyword = $keywords[0];
+                $final_prompt = '';
+                
+                // Determine which type of template to use
+                if (!empty($post_template)) {
+                    // Post template mode - create AI prompt from template
+                    $final_prompt = $this->create_ai_prompt_from_template($post_template, $keyword, $parameters);
+                } else {
+                    // Prompt template mode - use prompt directly
+                    $final_prompt = str_replace(
+                        array('{keyword}', '{tone}', '{length}', '{audience}', '{niche}'),
+                        array($keyword, $parameters['tone'], $parameters['length'], $parameters['audience'], $parameters['niche']),
+                        $prompt_template
+                    );
+                }
+                
+                // Generate content directly using API handler
+                $api_params = array_merge($parameters, $provider_override);
+                $generation_result = $this->api_handler->generate_content($final_prompt, $api_params);
+                
+                if ($generation_result['success']) {
+                    // Create WordPress post
+                    $post_data = array(
+                        'post_title' => $keyword,
+                        'post_content' => $generation_result['content'],
+                        'post_status' => $post_settings['post_status'],
+                        'post_type' => $post_settings['post_type']
+                    );
+                    
+                    $post_id = wp_insert_post($post_data);
+                    
+                    if ($post_id && !is_wp_error($post_id)) {
+                        // Set categories
+                        if (!empty($post_settings['categories'])) {
+                            wp_set_post_categories($post_id, $post_settings['categories']);
+                        }
+                        
+                        // Set tags
+                        if (!empty($post_settings['tags'])) {
+                            wp_set_post_tags($post_id, $post_settings['tags']);
+                        }
+                        
+                        wp_send_json_success(array(
+                            'message' => __('Content generated successfully!', 'kotacom-ai'),
+                            'type' => 'single',
+                            'results' => array(array(
+                                'keyword' => $keyword,
+                                'status' => 'success',
+                                'message' => __('Post created successfully', 'kotacom-ai'),
+                                'post_id' => $post_id
+                            ))
+                        ));
+                    } else {
+                        wp_send_json_error(array('message' => __('Failed to create post', 'kotacom-ai')));
+                    }
+                } else {
+                    wp_send_json_error(array('message' => $generation_result['error']));
+                }
             }
             
         } catch (Exception $e) {
